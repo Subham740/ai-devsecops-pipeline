@@ -1,0 +1,32 @@
+﻿{
+    "checksum":  "d64163af2f278a2598d2255290599068d512668cf0c70ce4656f924ace58284c",
+    "finding_count":  2,
+    "findings":  [
+                     {
+                         "description":  "subprocess with shell=True can execute injected shell metacharacters.",
+                         "excerpt":  "result = subprocess.call(user_input, shell=True)",
+                         "id":  "CMDI001",
+                         "line":  6,
+                         "recommendation":  "Pass argument lists to subprocess without shell=True and validate all inputs.",
+                         "severity":  "critical",
+                         "title":  "Command injection risk"
+                     },
+                     {
+                         "description":  "A literal value appears to be assigned to a secret-like variable.",
+                         "excerpt":  "password = \u0027admin123\u0027",
+                         "id":  "SECR001",
+                         "line":  13,
+                         "recommendation":  "Load secrets from environment variables or a secrets manager instead of source code.",
+                         "severity":  "high",
+                         "title":  "Possible hardcoded secret"
+                     }
+                 ],
+    "scan_id":  7,
+    "severity_breakdown":  {
+                               "critical":  1,
+                               "high":  1
+                           },
+    "source_type":  "inline",
+    "status":  "needs_attention",
+    "target_name":  "snippet.py"
+}

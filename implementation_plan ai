@@ -1,0 +1,173 @@
+# Advanced Features for AI DevSecOps Pipeline
+
+The current project is a solid Flask API with inline Python scanning, SQLite history, and optional OpenAI fixes. This plan adds **7 production-grade features** to transform it into a full-fledged DevSecOps platform.
+
+## User Review Required
+
+> [!IMPORTANT]
+> Please review the features below and let me know which ones you want (all 7, or a subset). I'll build them in the order listed since they layer on top of each other.
+
+> [!WARNING]
+> Feature 7 (JWT Auth) will change the `/login` response format — any existing client integrations should be updated.
+
+---
+
+## Feature Overview
+
+| # | Feature | Impact | New Files |
+|---|---------|--------|-----------|
+| 1 | **Premium Web Dashboard** | Full UI with charts, scan history, live scan form | `app/templates/`, `app/static/` |
+| 2 | **Multi-Language Scanner** | JS/TS/Java vulnerability rules beyond Python-only | `app/scanner.py` (extend) |
+| 3 | **Dependency Vulnerability Checker** | Parse `requirements.txt`/`package.json`, check known CVEs | `app/dependency_checker.py` (new) |
+| 4 | **Webhook & Slack Alerts** | Notify on critical findings via webhooks/Slack | `app/notifications.py` (new) |
+| 5 | **SARIF Report Export** | GitHub Advanced Security compatible output | `app/sarif_export.py` (new) |
+| 6 | **Directory / Repo Batch Scan** | Scan entire directories recursively in one request | `app/app.py` (new endpoint) |
+| 7 | **JWT Authentication** | Real token-based auth with expiry & protected routes | `app/auth.py` (new) |
+
+---
+
+## Proposed Changes
+
+### 1. Premium Web Dashboard
+
+A stunning single-page dashboard served at `/dashboard` with glassmorphism design, dark mode, animated charts, and a live code scanning form.
+
+#### [NEW] [app/templates/dashboard.html](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/templates/dashboard.html)
+- Full HTML page with embedded CSS & JS
+- **Hero section** with animated security score ring
+- **Live scan form** — paste code, get instant results with animated finding cards
+- **Scan history table** with severity badges and search/filter
+- **Metrics panel** with animated donut charts (Chart.js) for severity breakdown, rule distribution
+- **Trend chart** showing findings over time
+- Dark glassmorphism theme with gradient accents, Inter font, smooth transitions
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- Add `GET /dashboard` route serving the template
+- Add `app/static/` for any CSS/JS assets
+
+---
+
+### 2. Multi-Language Scanning (JS/TS/Java)
+
+Extend the scanner engine to detect vulnerabilities in JavaScript, TypeScript, and Java code.
+
+#### [MODIFY] [scanner.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/scanner.py)
+- Add new rules:
+  - `XSS001` — `innerHTML` / `document.write()` usage (JS/TS) — **high**
+  - `SQLI002` — String concatenation in Java SQL (`Statement.execute`) — **critical**
+  - `CMDI002` — `Runtime.exec()` with user input (Java) — **critical**  
+  - `PROTO001` — Prototype pollution (`__proto__` assignment) — **high**
+  - `SECR002` — Hardcoded secrets in JS/TS (`const API_KEY = "..."`) — **high**
+  - `NOSQL001` — NoSQL injection patterns (`$where`, `$gt` in MongoDB queries) — **high**
+- Auto-detect language from filename extension
+- Rule filtering: only apply relevant rules per language
+
+---
+
+### 3. Dependency Vulnerability Checker
+
+A new module that parses dependency manifests and checks packages against known CVEs.
+
+#### [NEW] [app/dependency_checker.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/dependency_checker.py)
+- Parse `requirements.txt` (Python), `package.json` (Node.js)
+- Built-in advisory database with ~20 well-known vulnerable package versions (e.g., `flask<2.3.2`, `lodash<4.17.21`, `log4j<2.17.0`)
+- Return findings with CVE IDs, severity, and upgrade recommendations
+- Extensible: add new advisories via config
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- Add `POST /scan/dependencies` endpoint accepting file content or file_path
+- Add `GET /advisories` to list known vulnerability database
+
+#### [MODIFY] [storage.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/storage.py)
+- Add `dependency_scans` table to track dependency scan results
+
+---
+
+### 4. Webhook & Slack Alert Notifications
+
+Automatic alerting when scans detect critical/high findings.
+
+#### [NEW] [app/notifications.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/notifications.py)
+- `send_webhook(url, payload)` — generic HTTP POST to any URL
+- `send_slack_alert(webhook_url, scan_result)` — formatted Slack Block Kit message with severity colors
+- Configurable threshold: alert only on `critical` or `high`+`critical`
+- Non-blocking (fire-and-forget in a thread)
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- After each scan, trigger notification if threshold met
+- Add `POST /webhooks` endpoint to register/list webhook URLs
+- Config keys: `WEBHOOK_URL`, `SLACK_WEBHOOK_URL`, `ALERT_SEVERITY_THRESHOLD`
+
+---
+
+### 5. SARIF Report Export
+
+Export scan results in SARIF 2.1.0 format for integration with GitHub Advanced Security.
+
+#### [NEW] [app/sarif_export.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/sarif_export.py)
+- Convert scan findings to SARIF 2.1.0 JSON schema
+- Include tool metadata, rule definitions, and result locations
+- Map severity levels to SARIF `level` (error/warning/note)
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- Add `GET /scans/<id>/sarif` endpoint returning SARIF JSON
+- Add `Accept: application/sarif+json` content negotiation on scan detail
+
+---
+
+### 6. Directory / Repo Batch Scan
+
+Scan an entire directory tree in one API call and get an aggregated report.
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- Add `POST /scan/directory` endpoint
+  - Accepts `{"directory": "relative/path"}` within SCAN_ROOT
+  - Recursively finds `.py`, `.js`, `.ts`, `.java` files
+  - Runs scanner on each, aggregates results
+  - Returns per-file breakdown + summary totals
+
+#### [MODIFY] [storage.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/storage.py)
+- Store batch scan as a parent record with child file scans
+
+---
+
+### 7. JWT Authentication
+
+Replace the demo token system with proper JWT-based auth.
+
+#### [NEW] [app/auth.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/auth.py)
+- JWT token generation with configurable expiry (default 24h)
+- `@require_auth` decorator for protecting endpoints
+- Token refresh endpoint
+- Uses `PyJWT` library with HS256 signing
+
+#### [MODIFY] [app.py](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/app/app.py)
+- `/login` returns JWT token instead of random token
+- Protected endpoints: `/scan`, `/fix`, `/scan/directory`, `/scan/dependencies`
+- Public endpoints: `/`, `/health`, `/rules`, `/dashboard`
+
+#### [MODIFY] [requirements.txt](file:///c:/Users/shubh/OneDrive/Desktop/ai-devsecops/requirements.txt)
+- Add `PyJWT>=2.8,<3.0`
+
+---
+
+## Open Questions
+
+> [!IMPORTANT]
+> 1. **Which features do you want?** All 7, or a specific subset? I'll build in order.
+> 2. **Dashboard preference:** Do you want a dark-mode-only dashboard, or a toggle for light/dark?
+> 3. **Slack Integration:** Do you already have a Slack webhook URL to test with, or should I make it purely config-driven?
+
+## Verification Plan
+
+### Automated Tests
+- Run existing tests: `python -m unittest discover -s tests -v`
+- Add new test cases for each feature in `tests/`
+- Test the dashboard by opening it in the browser
+- Test SARIF output against the schema spec
+- Test batch scan with the project's own source code
+
+### Manual Verification
+- Visual inspection of the dashboard in browser
+- Run a full scan through the dashboard form
+- Export a SARIF report and validate structure

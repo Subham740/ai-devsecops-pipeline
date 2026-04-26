@@ -1,0 +1,29 @@
+rules:
+  - id: python-sql-string-construction
+    patterns:
+      - pattern-either:
+          - pattern: $CURSOR.execute(f"...")
+          - pattern: $CURSOR.execute("..." + ...)
+          - pattern: $CURSOR.execute('...' + ...)
+          - pattern: $CURSOR.execute("...".format(...))
+          - pattern: $CURSOR.execute('...'.format(...))
+    message: Avoid constructing SQL queries dynamically. Use parameterized queries instead.
+    severity: ERROR
+    languages: [python]
+  - id: python-dangerous-eval
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: Avoid eval/exec on untrusted data.
+    severity: ERROR
+    languages: [python]
+  - id: python-subprocess-shell-true
+    pattern: subprocess.$FUNC(..., shell=True, ...)
+    message: shell=True can lead to command injection.
+    severity: WARNING
+    languages: [python]
+  - id: flask-debug-enabled
+    pattern: $APP.run(..., debug=True, ...)
+    message: Do not enable Flask debug mode in deployed environments.
+    severity: WARNING
+    languages: [python]

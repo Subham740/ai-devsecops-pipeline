@@ -1,0 +1,56 @@
+name: DevSecOps Pipeline
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  security-service:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install semgrep
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run Semgrep scan
+        run: semgrep --config=semgrep.yml app/ ai_fix.py
+
+      - name: Run AI remediation demo
+        run: python ai_fix.py --finding-id EXEC001 --vulnerability "Unsafe eval on user input"
+
+      - name: Build Docker image
+        run: docker build -t devsecops-app -f app/Dockerfile .
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO- https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sudo sh -s -- -b /usr/local/bin
+
+      - name: Run Trivy image scan
+        run: trivy image --severity HIGH,CRITICAL --exit-code 1 devsecops-app
+
+      - name: Run Docker container for DAST
+        run: |
+          docker run -d -p 5000:5000 --name devsecops-app-container devsecops-app
+          sleep 15  # wait for healthcheck to pass and server to start
+
+      - name: OWASP ZAP Baseline Scan
+        uses: zaproxy/action-baseline@v0.12.0
+        with:
+          target: 'http://localhost:5000/'
+          fail_action: false
