@@ -1,3 +1,14 @@
-flask>=3.1,<4.0
-openai>=1.0,<2.0
-prometheus-flask-exporter>=0.23.0
+flask
+flask-sqlalchemy
+flask-login
+flask-bcrypt
+flask-wtf
+requests
+prometheus-flask-exporter
+gunicorn
+bandit
+safety
+semgrep
+anthropic
+openai
+python-dotenv

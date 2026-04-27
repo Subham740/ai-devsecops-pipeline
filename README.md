@@ -1,51 +1,70 @@
-# AI DevSecOps
+# AI-Augmented DevSecOps Pipeline
 
-`AI DevSecOps` is now a small Flask-based security service instead of a single demo endpoint. It combines local code scanning, optional AI remediation guidance, scan history, basic metrics, and a hardened demo login flow.
+A professional-grade DevSecOps project integrating modern security tools, AI-powered remediation guidance, and automated CI/CD pipelines.
 
 ## Features
 
-- JSON API with `/health`, `/rules`, `/scan`, `/scans`, `/metrics`, `/fix`, and `/login`
-- Local Python security scanner for SQL injection, `eval`/`exec`, `shell=True`, Flask debug mode, hardcoded secrets, and unsafe deserialization
-- SQLite-backed scan history and metrics
-- Optional OpenAI-powered fix suggestions with deterministic fallback guidance when no API key is configured
-- Unit tests, Semgrep rules, Docker image, and CI pipeline with Trivy scanning
+- **Backend**: Python 3.11 + Flask + SQLAlchemy (MySQL/SQLite)
+- **Authentication**: Flask-Login + Bcrypt (Protected Dashboard)
+- **SAST**: Semgrep + Bandit (Static Analysis Security Testing)
+- **DAST**: OWASP ZAP (Dynamic Analysis Security Testing)
+- **Container Scan**: Trivy (Scanning Docker images for CVEs)
+- **AI Remediation**: GPT-4 (Automated fix suggestions based on scan results)
+- **CI/CD**: Dual support for GitHub Actions and Jenkins
+- **Monitoring**: Prometheus + Grafana Dashboard
 
-## Local Run
+## Project Structure
 
-```powershell
-pip install -r requirements.txt
-python -m app.app
+```
+.
+├── app/
+│   ├── auth/          # Login, Register routes & forms
+│   ├── dashboard/     # Protected employee directory
+│   ├── templates/     # UI Templates (Glassmorphism theme)
+│   ├── models.py      # SQLAlchemy models (User, Employee)
+│   └── __init__.py    # App factory & extension init
+├── security/
+│   ├── scanner.py     # Runs Semgrep & Bandit
+│   ├── ai_remediation.py # Calls GPT-4 for security fixes
+│   └── zap_scan.py    # DAST scanning wrapper
+├── .github/workflows/
+│   └── devsecops.yml  # GitHub Actions pipeline
+├── Dockerfile         # Containerization
+├── Jenkinsfile        # Jenkins pipeline
+├── grafana/           # Monitoring configurations
+├── config.py          # Central configuration
+├── requirements.txt   # Dependencies
+└── run.py             # Entry point
 ```
 
-The API listens on `http://127.0.0.1:5000` by default.
+## Getting Started
 
-## Demo Login
+1. **Install Dependencies**:
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-- Username: `security-admin`
-- Password: `ChangeMe123!`
+2. **Run the App**:
+   ```bash
+   python run.py
+   ```
 
-Override with `DEMO_USERNAME` and `DEMO_PASSWORD` if needed.
+3. **Run Security Scans**:
+   ```bash
+   python security/scanner.py
+   python security/ai_remediation.py  # Requires OPENAI_API_KEY
+   ```
 
-## Useful Endpoints
+## CI/CD Integration
 
-- `GET /health`: service status and feature flags
-- `GET /rules`: local scanner rule catalog
-- `POST /scan`: scan inline code or a file relative to `SCAN_ROOT`
-- `GET /scans`: recent scan history
-- `GET /scans/<id>`: full details for one scan
-- `GET /metrics`: aggregate usage and finding counts
-- `POST /fix`: remediation guidance for a finding or code snippet
-- `POST /login`: demo auth flow with rate limiting
+### GitHub Actions
+- Ensure `OPENAI_API_KEY` is added to your GitHub Repository Secrets.
+- The pipeline runs automatically on every push to `main`.
 
-## Example Scan Request
+### Jenkins
+- Configure a pipeline project and add the `OPENAI_API_KEY` credential.
+- Use the provided `Jenkinsfile`.
 
-```json
-{
-  "code": "import subprocess\\nsubprocess.run(user_cmd, shell=True)",
-  "filename": "danger.py"
-}
-```
-
-## AI Fixes
-
-Set `OPENAI_API_KEY` to enable model-backed remediation. Without it, the service still returns local fallback guidance so CI and local runs remain deterministic.
+## Monitoring
+- Access metrics at `/metrics`.
+- Import `grafana/dashboard.json` into your Grafana instance connected to Prometheus.

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from werkzeug.security import generate_password_hash
 
-from app.app import create_app
+from app import create_app
 
 
 class AppTests(unittest.TestCase):
