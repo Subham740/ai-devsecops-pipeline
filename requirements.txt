@@ -12,3 +12,5 @@ semgrep
 anthropic
 openai
 python-dotenv
+pymongo
+mongomock

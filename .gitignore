@@ -4,5 +4,8 @@ __pycache__/
 *.py[cod]
 *.db
 *.log
+.env
+.env.*
+!.env.example
 .pytest_cache/
 .coverage

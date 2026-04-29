@@ -22,6 +22,19 @@ subprocess.run(user_cmd, shell=True)
             {"SQLI001", "CMDI001"},
         )
 
+    def test_scanner_detects_eval_and_hardcoded_secret(self):
+        code = """
+api_key = "secret-key-123456"
+eval(user_supplied_expression)
+"""
+        result = scan_code(code, "dangerous.py")
+
+        self.assertEqual(result["status"], "needs_attention")
+        self.assertSetEqual(
+            {finding["id"] for finding in result["findings"]},
+            {"EXEC001", "SECRET001"},
+        )
+
     def test_scanner_passes_clean_code(self):
         code = """
 query = "SELECT * FROM users WHERE username = ?"

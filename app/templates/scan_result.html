@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scan Result - AI DevSecOps</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #111827 0%, #312e81 100%);
+            color: #f8fafc;
+            font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            padding: 2rem 1rem;
+        }
+
+        .result-shell {
+            max-width: 1080px;
+            margin: 0 auto;
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            border-radius: 16px;
+            box-shadow: 0 18px 50px rgba(2, 6, 23, 0.35);
+            padding: 1.5rem;
+        }
+
+        .result-header {
+            margin-bottom: 1.5rem;
+        }
+
+        .result-header h1 {
+            margin: 0 0 0.5rem;
+            font-size: 2rem;
+            font-weight: 800;
+        }
+
+        .result-meta {
+            color: rgba(226, 232, 240, 0.72);
+        }
+
+        .summary-grid {
+            display: grid;
+            grid-template-columns: repeat(3, minmax(0, 1fr));
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .summary-card,
+        .finding-card {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px solid rgba(148, 163, 184, 0.26);
+            border-radius: 14px;
+            padding: 1rem;
+        }
+
+        .summary-label {
+            color: rgba(226, 232, 240, 0.72);
+            font-size: 0.84rem;
+            margin-bottom: 0.35rem;
+        }
+
+        .summary-value {
+            font-size: 1.5rem;
+            font-weight: 800;
+        }
+
+        .finding-list {
+            display: grid;
+            gap: 1rem;
+        }
+
+        .finding-top {
+            display: flex;
+            justify-content: space-between;
+            gap: 1rem;
+            align-items: start;
+            margin-bottom: 0.75rem;
+        }
+
+        .finding-title {
+            margin: 0;
+            font-size: 1.05rem;
+            font-weight: 700;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.28rem 0.7rem;
+            font-size: 0.72rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .badge.high {
+            background: rgba(248, 113, 113, 0.16);
+            color: #fecaca;
+        }
+
+        .badge.critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: #fecaca;
+        }
+
+        .badge.medium {
+            background: rgba(251, 191, 36, 0.16);
+            color: #fde68a;
+        }
+
+        .badge.low {
+            background: rgba(56, 189, 248, 0.16);
+            color: #bae6fd;
+        }
+
+        .finding-text {
+            color: rgba(226, 232, 240, 0.86);
+            margin-bottom: 0.6rem;
+        }
+
+        .code-block {
+            background: rgba(2, 6, 23, 0.8);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-radius: 10px;
+            padding: 0.85rem 1rem;
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 0.88rem;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+
+        .empty-state {
+            background: rgba(15, 23, 42, 0.6);
+            border: 1px dashed rgba(148, 163, 184, 0.26);
+            border-radius: 14px;
+            padding: 1.25rem;
+            color: rgba(226, 232, 240, 0.78);
+        }
+
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1.5rem;
+            color: white;
+            text-decoration: none;
+            font-weight: 700;
+        }
+
+        @media (max-width: 720px) {
+            .summary-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .finding-top {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <main class="result-shell">
+        <header class="result-header">
+            <h1><i class="fas fa-shield-alt"></i> Scan Result</h1>
+            <div class="result-meta">
+                Scan ID: {{ scan_result.id }} | Target: {{ scan_result.target_name }} | Time: {{ scan_result.display_timestamp }}
+            </div>
+        </header>
+
+        <section class="summary-grid">
+            <article class="summary-card">
+                <div class="summary-label">Status</div>
+                <div class="summary-value">{{ scan_result.status.replace('_', ' ').title() }}</div>
+            </article>
+            <article class="summary-card">
+                <div class="summary-label">Findings</div>
+                <div class="summary-value">{{ scan_result.finding_count }}</div>
+            </article>
+            <article class="summary-card">
+                <div class="summary-label">Stored</div>
+                <div class="summary-value">Yes</div>
+            </article>
+        </section>
+
+        {% if scan_result.findings %}
+            <section class="finding-list">
+                {% for finding in scan_result.findings %}
+                    <article class="finding-card">
+                        <div class="finding-top">
+                            <div>
+                                <p class="finding-title">{{ finding.name }} ({{ finding.id }})</p>
+                                <div class="result-meta">{{ finding.filename }} : line {{ finding.line }}</div>
+                            </div>
+                            <span class="badge {{ finding.severity|lower }}">{{ finding.severity }}</span>
+                        </div>
+                        <div class="finding-text">{{ finding.message }}</div>
+                        <div class="finding-text"><strong>Why it matters:</strong> {{ finding.description }}</div>
+                        <div class="finding-text"><strong>Recommended fix:</strong> {{ finding.recommendation }}</div>
+                        {% if finding.excerpt %}
+                            <div class="code-block">{{ finding.excerpt }}</div>
+                        {% endif %}
+                    </article>
+                {% endfor %}
+            </section>
+        {% else %}
+            <section class="empty-state">
+                No findings detected. Result database me save ho chuka hai aur dashboard history me bhi available hai.
+            </section>
+        {% endif %}
+
+        <a href="{{ url_for('dashboard.index') }}" class="back-link">
+            <i class="fas fa-arrow-left"></i>
+            <span>Back to Dashboard</span>
+        </a>
+    </main>
+</body>
+</html>

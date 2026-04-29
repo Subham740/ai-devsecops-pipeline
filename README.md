@@ -1,70 +1,67 @@
 # AI-Augmented DevSecOps Pipeline
 
-A professional-grade DevSecOps project integrating modern security tools, AI-powered remediation guidance, and automated CI/CD pipelines.
+This project is a Flask-based DevSecOps workspace for scanning Python snippets, storing findings, and requesting AI-assisted remediation guidance from Gemini.
 
-## Features
+## Current Feature Set
 
-- **Backend**: Python 3.11 + Flask + SQLAlchemy (MySQL/SQLite)
-- **Authentication**: Flask-Login + Bcrypt (Protected Dashboard)
-- **SAST**: Semgrep + Bandit (Static Analysis Security Testing)
-- **DAST**: OWASP ZAP (Dynamic Analysis Security Testing)
-- **Container Scan**: Trivy (Scanning Docker images for CVEs)
-- **AI Remediation**: GPT-4 (Automated fix suggestions based on scan results)
-- **CI/CD**: Dual support for GitHub Actions and Jenkins
-- **Monitoring**: Prometheus + Grafana Dashboard
+- MongoDB-backed scan persistence with SQL fallback
+- Login and registration flow for dashboard access
+- Interactive dashboard with real metrics, scan history, and rule catalog
+- Clickable stored scans that open detailed finding views
+- AI remediation endpoint that can call Gemini and falls back gracefully when AI is unavailable
+- Heuristic Python security scanner with rules for:
+  - SQL Injection
+  - Command Injection
+  - Dynamic Code Execution
+  - Unsafe Deserialization
+  - Hardcoded Secrets
 
-## Project Structure
+## Environment Setup
 
-```
-.
-├── app/
-│   ├── auth/          # Login, Register routes & forms
-│   ├── dashboard/     # Protected employee directory
-│   ├── templates/     # UI Templates (Glassmorphism theme)
-│   ├── models.py      # SQLAlchemy models (User, Employee)
-│   └── __init__.py    # App factory & extension init
-├── security/
-│   ├── scanner.py     # Runs Semgrep & Bandit
-│   ├── ai_remediation.py # Calls GPT-4 for security fixes
-│   └── zap_scan.py    # DAST scanning wrapper
-├── .github/workflows/
-│   └── devsecops.yml  # GitHub Actions pipeline
-├── Dockerfile         # Containerization
-├── Jenkinsfile        # Jenkins pipeline
-├── grafana/           # Monitoring configurations
-├── config.py          # Central configuration
-├── requirements.txt   # Dependencies
-└── run.py             # Entry point
+Create a local `.env` based on `.env.example`.
+
+Important variables:
+
+```env
+DATA_BACKEND=mongo
+MONGODB_URI=mongodb://127.0.0.1:27017/devsecops
+MONGODB_DB_NAME=devsecops
+AI_PROVIDER=gemini
+GEMINI_API_KEY=your-gemini-api-key
+GEMINI_MODEL=gemini-2.5-flash
+DEMO_USERNAME=tester
+DEMO_PASSWORD=TestPass123!
 ```
 
-## Getting Started
+## Run Locally
 
-1. **Install Dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
+```bash
+pip install -r requirements.txt
+python run.py
+```
 
-2. **Run the App**:
-   ```bash
-   python run.py
-   ```
+Default local URL:
 
-3. **Run Security Scans**:
-   ```bash
-   python security/scanner.py
-   python security/ai_remediation.py  # Requires OPENAI_API_KEY
-   ```
+```text
+http://127.0.0.1:5002
+```
 
-## CI/CD Integration
+## Useful Routes
 
-### GitHub Actions
-- Ensure `OPENAI_API_KEY` is added to your GitHub Repository Secrets.
-- The pipeline runs automatically on every push to `main`.
+- `/health` - backend and AI provider status
+- `/dashboard` - main application UI
+- `/metrics` - dashboard metrics JSON
+- `/rules` - active scanner rule catalog
+- `/scans` - stored scan history
+- `/fix` - AI remediation for a finding
 
-### Jenkins
-- Configure a pipeline project and add the `OPENAI_API_KEY` credential.
-- Use the provided `Jenkinsfile`.
+## Test Commands
+
+```bash
+python -m unittest tests.test_app -v
+python -m unittest tests.test_scanner -v
+```
 
 ## Monitoring
-- Access metrics at `/metrics`.
-- Import `grafana/dashboard.json` into your Grafana instance connected to Prometheus.
+
+- Grafana configuration lives under `grafana/`

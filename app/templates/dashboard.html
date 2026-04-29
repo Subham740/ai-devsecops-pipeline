@@ -1,54 +1,318 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Dashboard - AI DevSecOps</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
-    <style>
-        body { background: #0f172a; color: #f8fafc; font-family: 'Inter', sans-serif; }
-        .navbar { background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px); border-bottom: 1px solid rgba(255, 255, 255, 0.1); }
-        .card { background: rgba(30, 41, 59, 0.7); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
-        .table { color: #f8fafc; }
-        .table-hover tbody tr:hover { background: rgba(255, 255, 255, 0.05); }
-    </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI DevSecOps Dashboard</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-<nav class="navbar navbar-expand-lg navbar-dark mb-4">
-    <div class="container">
-        <a class="navbar-brand" href="#">AI DevSecOps</a>
-        <div class="navbar-nav ms-auto">
-            <span class="nav-item nav-link">Welcome, {{ current_user.username }}</span>
-            <a class="nav-item nav-link" href="{{ url_for('auth.logout') }}">Logout</a>
+    <div class="bg-grid"></div>
+
+    <header class="header">
+        <div class="header__logo">
+            <div class="header__icon">
+                <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div>
+                <div class="header__title">AI DevSecOps</div>
+                <div class="header__subtitle">Secure code review workspace</div>
+            </div>
+        </div>
+
+        <nav class="header__nav">
+            <button type="button" class="nav-btn active" id="nav-dashboard" data-panel="dashboard">
+                <i class="fa-solid fa-chart-column"></i>
+                <span>Overview</span>
+            </button>
+            <button type="button" class="nav-btn" id="nav-scanner" data-panel="scanner">
+                <i class="fa-solid fa-code"></i>
+                <span>Scanner</span>
+            </button>
+            <button type="button" class="nav-btn" id="nav-history" data-panel="history">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                <span>History</span>
+            </button>
+            <button type="button" class="nav-btn" id="nav-rules" data-panel="rules">
+                <i class="fa-solid fa-book"></i>
+                <span>Rules</span>
+            </button>
+        </nav>
+
+        <div class="header__meta">
+            <div class="header-pill" id="health-indicator">
+                <span class="status-dot"></span>
+                <span class="status-text">Checking status</span>
+            </div>
+            <div class="header-pill">
+                <span class="header-pill__label">Backend</span>
+                <span class="header-pill__value" id="backend-label">Unknown</span>
+            </div>
+            <div class="header-pill">
+                <span class="header-pill__label">AI</span>
+                <span class="header-pill__value" id="ai-label">Unavailable</span>
+            </div>
+            <div class="header-user">
+                <span class="header-user__name">{{ current_user.username }}</span>
+                <a href="{{ url_for('auth.logout') }}" class="header-user__logout">
+                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
+                    <span>Logout</span>
+                </a>
+            </div>
+        </div>
+    </header>
+
+    <main class="main">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <section class="flash-stack">
+                    {% for category, message in messages %}
+                        <div class="flash-message {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </section>
+            {% endif %}
+        {% endwith %}
+
+        <section class="panel active" id="panel-dashboard">
+            <div class="panel__header">
+                <h1>Security Overview</h1>
+                <p class="panel__subtitle">Live metrics, stored findings, and the latest scans from your workspace.</p>
+            </div>
+
+            <div class="metrics-grid">
+                <article class="metric-card metric-card--scans">
+                    <div class="metric-card__icon"><i class="fa-solid fa-magnifying-glass"></i></div>
+                    <div class="metric-card__value" id="metric-total-scans">{{ dashboard_metrics.total_scans }}</div>
+                    <div class="metric-card__label">Total scans</div>
+                </article>
+                <article class="metric-card metric-card--findings">
+                    <div class="metric-card__icon"><i class="fa-solid fa-bug"></i></div>
+                    <div class="metric-card__value" id="metric-total-findings">{{ dashboard_metrics.total_findings }}</div>
+                    <div class="metric-card__label">Findings detected</div>
+                </article>
+                <article class="metric-card metric-card--passed">
+                    <div class="metric-card__icon"><i class="fa-solid fa-circle-check"></i></div>
+                    <div class="metric-card__value" id="metric-passed">{{ dashboard_metrics.passed_scans }}</div>
+                    <div class="metric-card__label">Passed scans</div>
+                </article>
+                <article class="metric-card metric-card--attention">
+                    <div class="metric-card__icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+                    <div class="metric-card__value" id="metric-attention">{{ dashboard_metrics.needs_attention_scans }}</div>
+                    <div class="metric-card__label">Need attention</div>
+                </article>
+            </div>
+
+            <div class="overview-grid">
+                <article class="glass-card" id="rule-chart-card">
+                    <div class="glass-card__header">
+                        <div>
+                            <h2 class="glass-card__title"><i class="fa-solid fa-chart-bar"></i> Rule Activity</h2>
+                            <p class="glass-card__subtitle">Stored findings grouped by rule.</p>
+                        </div>
+                        <button type="button" class="btn btn--ghost btn--sm" onclick="switchPanel('rules')">
+                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
+                            <span>Open Rules</span>
+                        </button>
+                    </div>
+                    <div id="rule-bars" class="rule-bars">
+                        {% if dashboard_metrics.rule_breakdown %}
+                            {% for rule_id, count in dashboard_metrics.rule_breakdown.items() %}
+                                <div class="rule-bar-row">
+                                    <div class="rule-bar-label">{{ rule_id }}</div>
+                                    <div class="rule-bar-track">
+                                        <div class="rule-bar-fill" style="width: {{ count * 100 / dashboard_metrics.total_findings if dashboard_metrics.total_findings else 0 }}%"></div>
+                                    </div>
+                                    <div class="rule-bar-value">{{ count }}</div>
+                                </div>
+                            {% endfor %}
+                        {% else %}
+                            <p class="placeholder-text">No findings registered yet.</p>
+                        {% endif %}
+                    </div>
+                </article>
+
+                <article class="glass-card">
+                    <div class="glass-card__header">
+                        <div>
+                            <h2 class="glass-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Recent Scans</h2>
+                            <p class="glass-card__subtitle">Click any stored scan to inspect findings.</p>
+                        </div>
+                        <button type="button" class="btn btn--ghost btn--sm" onclick="switchPanel('scanner')">
+                            <i class="fa-solid fa-wand-magic-sparkles"></i>
+                            <span>New Scan</span>
+                        </button>
+                    </div>
+                    <div class="scan-list" id="recent-scans-list">
+                        {% if recent_scans %}
+                            {% for scan in recent_scans %}
+                                <button type="button" class="scan-item" data-scan-id="{{ scan.id }}">
+                                    <div class="scan-item__info">
+                                        <div class="scan-item__target">{{ scan.target_name }}</div>
+                                        <div class="scan-item__meta">
+                                            <span>{{ scan.display_timestamp }}</span>
+                                            <span>{{ scan.finding_count }} finding(s)</span>
+                                        </div>
+                                    </div>
+                                    <div class="scan-item__stats">
+                                        <span class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</span>
+                                    </div>
+                                </button>
+                            {% endfor %}
+                        {% else %}
+                            <p class="placeholder-text">No scans recorded yet.</p>
+                        {% endif %}
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="panel" id="panel-scanner">
+            <div class="panel__header">
+                <h1>Interactive Scanner</h1>
+                <p class="panel__subtitle">Paste a Python snippet, run a scan, inspect findings, and request Gemini-based remediation.</p>
+            </div>
+
+            <div class="scanner-layout">
+                <article class="glass-card">
+                    <div class="scanner-toolbar">
+                        <div class="scanner-toolbar__label">Scan Input</div>
+                        <div class="scanner-toolbar__actions">
+                            <button type="button" class="btn btn--ghost btn--sm" id="btn-clear-code">
+                                <i class="fa-solid fa-eraser"></i>
+                                <span>Clear</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="form-grid">
+                        <label class="field-group">
+                            <span class="field-group__label">File Name</span>
+                            <input type="text" class="form-input" id="filename-input" value="dashboard_input.py" maxlength="100">
+                        </label>
+                        <label class="field-group">
+                            <span class="field-group__label">Python Code</span>
+                            <textarea class="code-editor" id="code-input" spellcheck="false" placeholder="Paste Python code here to scan for security issues."></textarea>
+                        </label>
+                    </div>
+
+                    <div class="scanner-actions">
+                        <button type="button" class="btn btn--primary btn--lg" id="btn-scan">
+                            <i class="fa-solid fa-shield-virus"></i>
+                            <span>Scan for Vulnerabilities</span>
+                        </button>
+                    </div>
+                </article>
+
+                <article class="glass-card">
+                    <div class="glass-card__header">
+                        <div>
+                            <h2 class="glass-card__title"><i class="fa-solid fa-list-check"></i> Scan Results</h2>
+                            <p class="glass-card__subtitle">Latest result from the scanner panel.</p>
+                        </div>
+                    </div>
+                    <div id="scan-results">
+                        <div class="empty-state">
+                            <i class="fa-solid fa-shield-heart"></i>
+                            <p>Run a scan to see findings, severities, and AI-assisted remediation options.</p>
+                        </div>
+                    </div>
+                </article>
+            </div>
+        </section>
+
+        <section class="panel" id="panel-history">
+            <div class="panel__header">
+                <h1>Stored Scan History</h1>
+                <p class="panel__subtitle">Every scan result is persisted. Click a record to inspect its findings.</p>
+            </div>
+
+            <article class="glass-card">
+                <div class="glass-card__header">
+                    <div>
+                        <h2 class="glass-card__title"><i class="fa-solid fa-database"></i> All Scans</h2>
+                        <p class="glass-card__subtitle">Most recent results across the current project.</p>
+                    </div>
+                    <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh-history">
+                        <i class="fa-solid fa-rotate"></i>
+                        <span>Refresh</span>
+                    </button>
+                </div>
+                <div class="scan-list" id="history-list">
+                    {% if recent_scans %}
+                        {% for scan in recent_scans %}
+                            <button type="button" class="scan-item" data-scan-id="{{ scan.id }}">
+                                <div class="scan-item__info">
+                                    <div class="scan-item__target">{{ scan.target_name }}</div>
+                                    <div class="scan-item__meta">
+                                        <span>{{ scan.display_timestamp }}</span>
+                                        <span>{{ scan.finding_count }} finding(s)</span>
+                                    </div>
+                                </div>
+                                <div class="scan-item__stats">
+                                    <span class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</span>
+                                </div>
+                            </button>
+                        {% endfor %}
+                    {% else %}
+                        <p class="placeholder-text">No scans recorded yet.</p>
+                    {% endif %}
+                </div>
+            </article>
+        </section>
+
+        <section class="panel" id="panel-rules">
+            <div class="panel__header">
+                <h1>Detection Rules</h1>
+                <p class="panel__subtitle">Rule catalog currently used by the application scanner. No placeholder entries are injected.</p>
+            </div>
+
+            <div class="rules-grid" id="rules-grid">
+                {% for rule in rules %}
+                    <article class="glass-card rule-card">
+                        <div class="glass-card__header">
+                            <div style="font-weight: 700;">{{ rule.title }}</div>
+                            <span class="badge badge--{{ rule.severity }}">{{ rule.severity }}</span>
+                        </div>
+                        <div class="rule-card__id">{{ rule.id }} | {{ rule.cwe }}</div>
+                        <div class="rule-card__desc">{{ rule.description }}</div>
+                        <div class="rule-card__footer">{{ rule.recommendation }}</div>
+                    </article>
+                {% endfor %}
+            </div>
+        </section>
+    </main>
+
+    <div class="modal-overlay" id="scan-modal-overlay">
+        <div class="modal glass-card">
+            <div class="modal__header">
+                <div class="modal__title">
+                    <i class="fa-solid fa-file-shield"></i>
+                    <span>Scan Details</span>
+                </div>
+                <button type="button" class="btn btn--ghost btn--icon" id="scan-modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal__body" id="scan-modal-body"></div>
         </div>
     </div>
-</nav>
-<div class="container">
-    <h2 class="mb-4">Employee Directory</h2>
-    <div class="card p-4 shadow">
-        <table class="table table-hover">
-            <thead>
-                <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Role</th>
-                    <th>Department</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for employee in employees %}
-                <tr>
-                    <td>{{ employee.id }}</td>
-                    <td>{{ employee.name }}</td>
-                    <td>{{ employee.role }}</td>
-                    <td>{{ employee.department }}</td>
-                </tr>
-                {% else %}
-                <tr>
-                    <td colspan="4" class="text-center">No employees found.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+    <div class="modal-overlay" id="fix-modal-overlay">
+        <div class="modal glass-card">
+            <div class="modal__header">
+                <div class="modal__title">
+                    <i class="fa-solid fa-wand-magic-sparkles"></i>
+                    <span>AI Remediation</span>
+                </div>
+                <button type="button" class="btn btn--ghost btn--icon" id="fix-modal-close">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+            <div class="modal__body" id="fix-modal-body"></div>
+        </div>
     </div>
-</div>
+
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
 </html>

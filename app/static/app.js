@@ -1,414 +1,479 @@
-document.addEventListener('DOMContentLoaded', () => {
-    // ==== Navigation ====
-    const navBtns = document.querySelectorAll('.nav-btn');
-    const panels = document.querySelectorAll('.panel');
-  
-    // Add global switchPanel function
-    window.switchPanel = function(panelId) {
-      navBtns.forEach(btn => btn.classList.remove('active'));
-      panels.forEach(panel => panel.classList.remove('active'));
-      
-      const targetBtn = document.getElementById(`nav-${panelId}`);
-      const targetPanel = document.getElementById(`panel-${panelId}`);
-      if (targetBtn) targetBtn.classList.add('active');
-      if (targetPanel) targetPanel.classList.add('active');
-  
-      if (panelId === 'dashboard') loadDashboard();
-      if (panelId === 'history') loadHistory();
-      if (panelId === 'rules') loadRules();
-    };
-  
-    navBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        window.switchPanel(btn.dataset.panel);
-      });
-    });
-  
-    // ==== Modals ====
-    const fixModal = document.getElementById('fix-modal-overlay');
-    const fixModalClose = document.getElementById('fix-modal-close');
-    
-    fixModalClose.addEventListener('click', () => {
-      fixModal.classList.remove('active');
-    });
-    
-    // Close modal on outside click
-    fixModal.addEventListener('click', (e) => {
-      if (e.target === fixModal) {
-        fixModal.classList.remove('active');
-      }
-    });
-  
-    // ==== Core API logic ====
-    
-    async function checkHealth() {
-      const indicator = document.getElementById('health-indicator');
-      const dot = indicator.querySelector('.status-dot');
-      const text = indicator.querySelector('.status-text');
-      
-      try {
-        const res = await fetch('/health');
-        if (res.ok) {
-          dot.className = 'status-dot online';
-          text.textContent = 'System Online';
-        } else {
-          throw new Error('Bad response');
-        }
-      } catch (err) {
-        dot.className = 'status-dot offline';
-        text.textContent = 'API Offline';
-      }
+document.addEventListener("DOMContentLoaded", () => {
+  const navButtons = document.querySelectorAll(".nav-btn");
+  const panels = document.querySelectorAll(".panel");
+  const healthIndicator = document.getElementById("health-indicator");
+  const backendLabel = document.getElementById("backend-label");
+  const aiLabel = document.getElementById("ai-label");
+  const recentScansList = document.getElementById("recent-scans-list");
+  const historyList = document.getElementById("history-list");
+  const ruleBars = document.getElementById("rule-bars");
+  const rulesGrid = document.getElementById("rules-grid");
+  const scanResults = document.getElementById("scan-results");
+  const scanButton = document.getElementById("btn-scan");
+  const clearButton = document.getElementById("btn-clear-code");
+  const historyRefreshButton = document.getElementById("btn-refresh-history");
+  const filenameInput = document.getElementById("filename-input");
+  const codeInput = document.getElementById("code-input");
+  const scanModal = document.getElementById("scan-modal-overlay");
+  const scanModalBody = document.getElementById("scan-modal-body");
+  const fixModal = document.getElementById("fix-modal-overlay");
+  const fixModalBody = document.getElementById("fix-modal-body");
+
+  let rulesCache = [];
+  let latestScannerResult = null;
+  let currentScanDetail = null;
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  async function fetchJson(url, options = {}) {
+    const response = await fetch(url, options);
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(data.message || "Request failed.");
     }
-  
-    // Generic function to create severity badges
-    function createBadge(severity) {
-      return `<span class="badge badge--${severity}">${severity}</span>`;
+    return data;
+  }
+
+  function closeModal(modal) {
+    modal.classList.remove("active");
+  }
+
+  function renderScanRows(scans, container, emptyMessage) {
+    if (!container) return;
+
+    if (!scans || scans.length === 0) {
+      container.innerHTML = `<p class="placeholder-text">${escapeHtml(emptyMessage)}</p>`;
+      return;
     }
-  
-    // ---- Dashboard ----
-    async function loadDashboard() {
-      try {
-        const res = await fetch('/metrics');
-        const data = await res.json();
-        
-        if (data.status === 'ok') {
-          document.getElementById('metric-total-scans').textContent = data.metrics.total_scans;
-          document.getElementById('metric-total-findings').textContent = data.metrics.total_findings;
-          
-          const passed = data.metrics.status_breakdown.passed || 0;
-          const attention = data.metrics.status_breakdown.needs_attention || 0;
-          
-          document.getElementById('metric-passed').textContent = passed;
-          document.getElementById('metric-attention').textContent = attention;
-  
-          // Render rule chart
-          const rulesRes = await fetch('/rules');
-          const rulesData = await rulesRes.json();
-          let rulesMap = {};
-          if (rulesData.status === 'ok') {
-            rulesData.rules.forEach(r => rulesMap[r.id] = r.title);
-          }
-  
-          const ruleBreakdown = data.metrics.rule_breakdown;
-          const ruleBars = document.getElementById('rule-bars');
-          
-          if (Object.keys(ruleBreakdown).length > 0) {
-            let maxCount = Math.max(...Object.values(ruleBreakdown));
-            let html = '';
-            for (const [ruleId, count] of Object.entries(ruleBreakdown)) {
-              const width = Math.max(5, (count / maxCount) * 100);
-              const title = rulesMap[ruleId] || ruleId;
-              html += `
-                <div class="rule-bar-row">
-                  <div class="rule-bar-label" title="${title}">${title}</div>
-                  <div class="rule-bar-track">
-                    <div class="rule-bar-fill" style="width: ${width}%"></div>
-                  </div>
-                  <div class="rule-bar-value">${count}</div>
-                </div>
-              `;
-            }
-            ruleBars.innerHTML = html;
-          } else {
-             ruleBars.innerHTML = '<p class="placeholder-text">No findings registered yet.</p>';
-          }
-        }
-  
-        // Load recent scans
-        loadRecentScans();
-      } catch (err) {
-        console.error("Dashboard error:", err);
-      }
-    }
-  
-    async function loadRecentScans() {
-      try {
-        const res = await fetch('/scans?limit=5');
-        const data = await res.json();
-        
-        const list = document.getElementById('recent-scans-list');
-        if (data.status === 'ok' && data.scans.length > 0) {
-          list.innerHTML = data.scans.map(scan => renderScanItem(scan)).join('');
-        } else {
-          list.innerHTML = '<p class="placeholder-text">No recent scans found.</p>';
-        }
-      } catch (err) {
-        console.error("Recent scans error:", err);
-      }
-    }
-  
-    function renderScanItem(scan) {
-      const date = new Date(scan.created_at).toLocaleString();
-      const needsAttention = scan.status === 'needs_attention';
-      
-      return `
-        <div class="scan-item" onclick="viewScanDetails(${scan.id})">
-          <div class="scan-item__info">
-            <div class="scan-item__target">${scan.target_name}</div>
-            <div class="scan-item__meta">
-              <span>${date}</span>
-              <span>Source: ${scan.source_type}</span>
+
+    container.innerHTML = scans
+      .map(
+        (scan) => `
+          <button type="button" class="scan-item" data-scan-id="${escapeHtml(scan.id)}">
+            <div class="scan-item__info">
+              <div class="scan-item__target">${escapeHtml(scan.target_name)}</div>
+              <div class="scan-item__meta">
+                <span>${escapeHtml(scan.display_timestamp)}</span>
+                <span>${escapeHtml(scan.finding_count)} finding(s)</span>
+              </div>
             </div>
-          </div>
-          <div class="scan-item__stats">
-            ${needsAttention 
-              ? `<span style="color:var(--color-critical); font-weight:bold;">${scan.issue_count} Findings</span>`
-              : `<span style="color:var(--color-passed); font-weight:bold;">Passed</span>`
-            }
-          </div>
-        </div>
-      `;
+            <div class="scan-item__stats">
+              <span class="badge badge--${escapeHtml(scan.status)}">${escapeHtml(scan.status.replaceAll("_", " "))}</span>
+            </div>
+          </button>
+        `
+      )
+      .join("");
+  }
+
+  function renderRuleBreakdown(ruleBreakdown) {
+    if (!ruleBars) return;
+    const entries = Object.entries(ruleBreakdown || {});
+    if (entries.length === 0) {
+      ruleBars.innerHTML = '<p class="placeholder-text">No findings registered yet.</p>';
+      return;
     }
-  
-    // ---- Global view function for scan detail ----
-    window.viewScanDetails = function(scanId) {
-      // In a real app we'd open a modal or new view.
-      // For now, let's just alert since the template is a single page dashboard
-      // Alternatively, we can switch to scanner and populate results...
-      console.log('Viewing scan ID:', scanId);
-      alert('View scan details for ID ' + scanId + ' (Not fully implemented in UI yet)');
-    };
-  
-    // ---- Scanner ----
-    const btnScan = document.getElementById('btn-scan');
-    const btnLoadExample = document.getElementById('btn-load-example');
-    const btnClearCode = document.getElementById('btn-clear-code');
-    const codeInput = document.getElementById('code-input');
-    const resultsContainer = document.getElementById('scan-results');
-  
-    const exampleCode = `import os
-import subprocess
-import pickle
 
-def run_command(user_input):
-    # Potential Command Injection
-    os.system(user_input)
-    result = subprocess.call(user_input, shell=True)
-    return result
+    const titleMap = Object.fromEntries(rulesCache.map((rule) => [rule.id, rule.title]));
+    const maxCount = Math.max(...entries.map(([, count]) => count));
 
-def get_user(username):
-    # Potential SQL Injection
-    query = 'SELECT * FROM users WHERE name = ''' + username + ''''
-    return query
-
-def load_data(payload):
-    # Unsafe Deserialization
-    return pickle.loads(payload)
-
-# Hardcoded Secret
-password = 'admin123'
-secret_key = 'my-secret-key-hardcoded'
-`;
-  
-    btnLoadExample.addEventListener('click', () => {
-      codeInput.value = exampleCode;
-      codeInput.style.height = 'auto'; // Reset height
-      // Set height based on scroll height
-      codeInput.style.height = (codeInput.scrollHeight + 10) + 'px';
-    });
-  
-    btnClearCode.addEventListener('click', () => {
-      codeInput.value = '';
-    });
-  
-    btnScan.addEventListener('click', async () => {
-      const code = codeInput.value.trim();
-      if (!code) return alert("Please enter some code to scan.");
-  
-      btnScan.disabled = true;
-      btnScan.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" class="animate-spin"><circle cx="12" cy="12" r="10"/><path d="M12 2v4"/></svg> Scanning...`;
-      
-      try {
-        const res = await fetch('/scan', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ code: code, filename: 'dashboard_input.py' })
-        });
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-           resultsContainer.innerHTML = `<div class="scan-status-banner needs_attention">Error: ${data.message}</div>`;
-           return;
-        }
-  
-        renderScanResults(data, code);
-        // Refresh dashboard metrics quietly
-        loadDashboard(); 
-  
-      } catch (err) {
-        resultsContainer.innerHTML = `<div class="scan-status-banner needs_attention">Network error during scan.</div>`;
-      } finally {
-        btnScan.disabled = false;
-        btnScan.innerHTML = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Scan for Vulnerabilities`;
-      }
-    });
-  
-    function renderScanResults(data, originalCode) {
-      if (data.status === 'passed') {
-        resultsContainer.innerHTML = `
-          <div class="scan-status-banner passed">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-            Scan Passed: No vulnerabilities found in ${data.target_name}.
+    ruleBars.innerHTML = entries
+      .map(([ruleId, count]) => {
+        const label = titleMap[ruleId] || ruleId;
+        const width = Math.max(8, (count / maxCount) * 100);
+        return `
+          <div class="rule-bar-row">
+            <div class="rule-bar-label" title="${escapeHtml(label)}">${escapeHtml(label)}</div>
+            <div class="rule-bar-track">
+              <div class="rule-bar-fill" style="width: ${width}%"></div>
+            </div>
+            <div class="rule-bar-value">${count}</div>
           </div>
         `;
-        return;
-      }
-  
-      let html = `
-        <div class="scan-status-banner needs_attention">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          Warning: Found ${data.finding_count} vulnerabilities.
+      })
+      .join("");
+  }
+
+  function renderRules(rules) {
+    if (!rulesGrid) return;
+    if (!rules || rules.length === 0) {
+      rulesGrid.innerHTML = '<p class="placeholder-text">No rules available.</p>';
+      return;
+    }
+
+    rulesGrid.innerHTML = rules
+      .map(
+        (rule) => `
+          <article class="glass-card rule-card">
+            <div class="glass-card__header">
+              <div style="font-weight: 700;">${escapeHtml(rule.title)}</div>
+              <span class="badge badge--${escapeHtml(rule.severity)}">${escapeHtml(rule.severity)}</span>
+            </div>
+            <div class="rule-card__id">${escapeHtml(rule.id)} | ${escapeHtml(rule.cwe || "")}</div>
+            <div class="rule-card__desc">${escapeHtml(rule.description)}</div>
+            <div class="rule-card__footer">${escapeHtml(rule.recommendation)}</div>
+          </article>
+        `
+      )
+      .join("");
+  }
+
+  function renderScanResults(scan) {
+    latestScannerResult = scan;
+
+    if (scan.status === "passed") {
+      scanResults.innerHTML = `
+        <div class="scan-status-banner passed">
+          <i class="fa-solid fa-circle-check"></i>
+          <span>${escapeHtml(scan.target_name)} passed. No vulnerabilities were detected.</span>
         </div>
       `;
-  
-      data.findings.forEach(finding => {
-        // Escaping literal code for display
-        const escapedCode = finding.excerpt.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        // Create an encoded string to pass to the function
-        const safeCode = encodeURIComponent(originalCode);
-        const safeTitle = encodeURIComponent(finding.title);
-        const safeDesc = encodeURIComponent(finding.description);
-        
-        html += `
+      return;
+    }
+
+    const findingsHtml = scan.findings
+      .map(
+        (finding, index) => `
           <div class="finding-item">
             <div class="finding-item__header">
               <div>
-                <div class="finding-item__title">${finding.title}</div>
-                <div class="finding-item__meta">Line ${finding.line} • Rule ${finding.id}</div>
+                <div class="finding-item__title">${escapeHtml(finding.title)}</div>
+                <div class="finding-item__meta">Rule ${escapeHtml(finding.id)} | ${escapeHtml(finding.cwe || "")} | Line ${escapeHtml(finding.line)}</div>
               </div>
-              ${createBadge(finding.severity)}
+              <span class="badge badge--${escapeHtml(finding.severity)}">${escapeHtml(finding.severity)}</span>
             </div>
             <div class="finding-item__body">
-              <div class="finding-item__desc">${finding.description}</div>
-              <pre class="finding-item__code"><code>${escapedCode}</code></pre>
+              <div class="finding-item__desc">${escapeHtml(finding.message)}</div>
+              <div class="finding-item__desc"><strong>Why it matters:</strong> ${escapeHtml(finding.description)}</div>
+              <div class="finding-item__desc"><strong>Recommended action:</strong> ${escapeHtml(finding.recommendation)}</div>
+              <pre class="finding-item__code"><code>${escapeHtml(finding.excerpt)}</code></pre>
               <div class="finding-item__actions">
-                <button class="btn btn--primary btn--sm" onclick="getAIFix('${finding.id}', '${safeTitle}', '${safeDesc}', '${safeCode}')">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/></svg>
-                  Suggest Fix (AI)
+                <button type="button" class="btn btn--primary btn--sm ai-fix-btn" data-scan-context="latest" data-finding-index="${index}">
+                  <i class="fa-solid fa-wand-magic-sparkles"></i>
+                  <span>Ask AI for Fix</span>
                 </button>
               </div>
             </div>
           </div>
-        `;
-      });
-  
-      resultsContainer.innerHTML = html;
-    }
-  
-    // ---- AI Fix ----
-    window.getAIFix = async function(findingId, safeTitle, safeDesc, safeCode) {
-      const fixModalBody = document.getElementById('fix-modal-body');
-      fixModalBody.innerHTML = `
-        <div style="text-align:center; padding: 2rem; color:var(--text-muted);">
-           <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" class="animate-spin" style="margin-bottom:1rem"><circle cx="12" cy="12" r="10"/><path d="M12 2v4"/></svg>
-           <p>Analyzing context and generating remediation...</p>
+        `
+      )
+      .join("");
+
+    scanResults.innerHTML = `
+      <div class="scan-status-banner needs_attention">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        <span>${escapeHtml(scan.target_name)} has ${escapeHtml(scan.finding_count)} finding(s).</span>
+      </div>
+      ${findingsHtml}
+    `;
+  }
+
+  function renderScanDetail(scan) {
+    currentScanDetail = scan;
+
+    if (!scan.findings || scan.findings.length === 0) {
+      scanModalBody.innerHTML = `
+        <div class="detail-meta-grid">
+          <div class="detail-meta-card">
+            <div class="detail-meta-card__label">Target</div>
+            <div class="detail-meta-card__value">${escapeHtml(scan.target_name)}</div>
+          </div>
+          <div class="detail-meta-card">
+            <div class="detail-meta-card__label">Status</div>
+            <div class="detail-meta-card__value">${escapeHtml(scan.status)}</div>
+          </div>
+          <div class="detail-meta-card">
+            <div class="detail-meta-card__label">Findings</div>
+            <div class="detail-meta-card__value">0</div>
+          </div>
+        </div>
+        <div class="empty-state">
+          <i class="fa-solid fa-circle-check"></i>
+          <p>This scan passed without any findings.</p>
         </div>
       `;
-      fixModal.classList.add('active');
-  
-      try {
-        const res = await fetch('/fix', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            finding_id: findingId,
-            title: decodeURIComponent(safeTitle),
-            description: decodeURIComponent(safeDesc),
-            code: decodeURIComponent(safeCode)
-          })
-        });
-        
-        const data = await res.json();
-        
-        if (data.status === 'ok') {
-          const escapedExample = data.secure_example.replace(/</g, "&lt;").replace(/>/g, "&gt;");
-          fixModalBody.innerHTML = `
-            <div class="ai-recommendation">
-              <strong>Recommendation:</strong><br/>
-              ${data.recommendation}
-            </div>
-            
-            <div class="ai-code-block">
-              <div class="ai-code-header">
-                <span>Secure Implementation Example</span>
-                <span class="provider-badge">Provider: ${data.provider}</span>
+      scanModal.classList.add("active");
+      return;
+    }
+
+    const findingsHtml = scan.findings
+      .map(
+        (finding, index) => `
+          <div class="detail-finding">
+            <div class="detail-finding__top">
+              <div>
+                <div class="detail-finding__title">${escapeHtml(finding.title)} (${escapeHtml(finding.id)})</div>
+                <div class="detail-finding__meta">${escapeHtml(finding.filename)} | Line ${escapeHtml(finding.line)} | ${escapeHtml(finding.cwe || "")}</div>
               </div>
-              <pre class="ai-code-content"><code>${escapedExample}</code></pre>
+              <span class="badge badge--${escapeHtml(finding.severity)}">${escapeHtml(finding.severity)}</span>
             </div>
-          `;
-        } else {
-           fixModalBody.innerHTML = `<p style="color:var(--color-critical)">Error: ${data.message}</p>`;
-        }
-      } catch (err) {
-        fixModalBody.innerHTML = `<p style="color:var(--color-critical)">Network error generating fix.</p>`;
-      }
-    };
-  
-    // ---- History ----
-    async function loadHistory() {
-      try {
-        const res = await fetch('/scans?limit=50');
-        const data = await res.json();
-        
-        const list = document.getElementById('history-list');
-        if (data.status === 'ok' && data.scans.length > 0) {
-          list.innerHTML = data.scans.map(scan => renderScanItem(scan)).join('');
-        } else {
-          list.innerHTML = '<p class="placeholder-text">No history found.</p>';
-        }
-      } catch (err) {
-        console.error("History error:", err);
-      }
-    }
-  
-    // ---- Rules ----
-    async function loadRules() {
-      try {
-        const res = await fetch('/rules');
-        const data = await res.json();
-        
-        const grid = document.getElementById('rules-grid');
-        if (data.status === 'ok' && data.rules.length > 0) {
-          let html = '';
-          data.rules.forEach(rule => {
-             html += `
-               <div class="glass-card rule-card">
-                 <div class="glass-card__header" style="margin-bottom:0.5rem">
-                   <div style="font-weight:600;">${rule.title}</div>
-                   ${createBadge(rule.severity)}
-                 </div>
-                 <div class="rule-card__id">${rule.id}</div>
-                 <div class="rule-card__desc">${rule.description}</div>
-               </div>
-             `;
-          });
-          grid.innerHTML = html;
-        } else {
-          grid.innerHTML = '<p class="placeholder-text">No rules available.</p>';
-        }
-      } catch (err) {
-        console.error("Rules error:", err);
-      }
-    }
-  
-    // CSS for spinner animation inside JS just in case
-    const style = document.createElement('style');
-    style.innerHTML = `
-      .animate-spin {
-        animation: spin 1s linear infinite;
-      }
-      @keyframes spin {
-        from { transform: rotate(0deg); }
-        to { transform: rotate(360deg); }
-      }
+            <div class="detail-finding__text">${escapeHtml(finding.message)}</div>
+            <div class="detail-finding__text"><strong>Recommendation:</strong> ${escapeHtml(finding.recommendation)}</div>
+            <pre class="detail-code"><code>${escapeHtml(finding.excerpt)}</code></pre>
+            <div class="finding-item__actions" style="margin-top: 0.75rem;">
+              <button type="button" class="btn btn--primary btn--sm ai-fix-btn" data-scan-context="detail" data-finding-index="${index}">
+                <i class="fa-solid fa-wand-magic-sparkles"></i>
+                <span>Generate Secure Fix</span>
+              </button>
+            </div>
+          </div>
+        `
+      )
+      .join("");
+
+    scanModalBody.innerHTML = `
+      <div class="detail-meta-grid">
+        <div class="detail-meta-card">
+          <div class="detail-meta-card__label">Target</div>
+          <div class="detail-meta-card__value">${escapeHtml(scan.target_name)}</div>
+        </div>
+        <div class="detail-meta-card">
+          <div class="detail-meta-card__label">Status</div>
+          <div class="detail-meta-card__value">${escapeHtml(scan.status.replaceAll("_", " "))}</div>
+        </div>
+        <div class="detail-meta-card">
+          <div class="detail-meta-card__label">Findings</div>
+          <div class="detail-meta-card__value">${escapeHtml(scan.finding_count)}</div>
+        </div>
+      </div>
+      <h3 class="detail-section-title">Detected Issues</h3>
+      ${findingsHtml}
     `;
-    document.head.appendChild(style);
-  
-    // ==== Init ====
-    checkHealth();
-    loadDashboard();
-    
-    // Poll health every 30s
-    setInterval(checkHealth, 30000);
+    scanModal.classList.add("active");
+  }
+
+  async function requestAIFix(finding) {
+    if (!finding) return;
+
+    fixModalBody.innerHTML = `
+      <div class="empty-state">
+        <i class="fa-solid fa-robot fa-spin"></i>
+        <p>Generating secure remediation guidance...</p>
+      </div>
+    `;
+    fixModal.classList.add("active");
+
+    try {
+      const data = await fetchJson("/fix", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          finding_id: finding.id,
+          title: finding.title,
+          description: finding.description,
+          code: finding.excerpt || finding.message || "",
+        }),
+      });
+
+      const bestPractices = Array.isArray(data.best_practices)
+        ? data.best_practices.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+        : "";
+
+      fixModalBody.innerHTML = `
+        <div class="ai-recommendation">
+          <strong>${escapeHtml(data.title || finding.title)}</strong>
+          <p>${escapeHtml(data.explanation || "")}</p>
+          <p><strong>Recommended change:</strong> ${escapeHtml(data.recommendation || "")}</p>
+          ${data.warning ? `<p><strong>Note:</strong> ${escapeHtml(data.warning)}</p>` : ""}
+        </div>
+        <div class="ai-code-block">
+          <div class="ai-code-header">
+            <span>Secure Implementation Example</span>
+            <span class="provider-badge"><i class="fa-solid fa-bolt"></i>${escapeHtml(data.provider)}</span>
+          </div>
+          <pre class="ai-code-content"><code>${escapeHtml(data.secure_example || "")}</code></pre>
+        </div>
+        ${bestPractices ? `<ul class="best-practice-list">${bestPractices}</ul>` : ""}
+      `;
+    } catch (error) {
+      fixModalBody.innerHTML = `
+        <div class="scan-status-banner needs_attention">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>${escapeHtml(error.message)}</span>
+        </div>
+      `;
+    }
+  }
+
+  async function viewScanDetails(scanId) {
+    try {
+      const data = await fetchJson(`/scans/${encodeURIComponent(scanId)}`);
+      renderScanDetail(data.scan);
+    } catch (error) {
+      scanModalBody.innerHTML = `
+        <div class="scan-status-banner needs_attention">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>${escapeHtml(error.message)}</span>
+        </div>
+      `;
+      scanModal.classList.add("active");
+    }
+  }
+
+  async function loadDashboard() {
+    try {
+      const metricsResponse = await fetchJson("/metrics");
+      const recentResponse = await fetchJson("/scans?limit=5");
+      const metrics = metricsResponse.metrics;
+
+      document.getElementById("metric-total-scans").textContent = metrics.total_scans;
+      document.getElementById("metric-total-findings").textContent = metrics.total_findings;
+      document.getElementById("metric-passed").textContent = metrics.passed_scans;
+      document.getElementById("metric-attention").textContent = metrics.needs_attention_scans;
+
+      renderRuleBreakdown(metrics.rule_breakdown || {});
+      renderScanRows(recentResponse.scans, recentScansList, "No scans recorded yet.");
+    } catch (error) {
+      if (recentScansList) {
+        recentScansList.innerHTML = `<p class="placeholder-text">${escapeHtml(error.message)}</p>`;
+      }
+    }
+  }
+
+  async function loadHistory() {
+    try {
+      const response = await fetchJson("/scans?limit=50");
+      renderScanRows(response.scans, historyList, "No scans recorded yet.");
+    } catch (error) {
+      if (historyList) {
+        historyList.innerHTML = `<p class="placeholder-text">${escapeHtml(error.message)}</p>`;
+      }
+    }
+  }
+
+  async function loadRules() {
+    try {
+      const response = await fetchJson("/rules");
+      rulesCache = response.rules || [];
+      renderRules(rulesCache);
+    } catch (error) {
+      if (rulesGrid) {
+        rulesGrid.innerHTML = `<p class="placeholder-text">${escapeHtml(error.message)}</p>`;
+      }
+    }
+  }
+
+  async function checkHealth() {
+    try {
+      const data = await fetchJson("/health");
+      const dot = healthIndicator.querySelector(".status-dot");
+      const text = healthIndicator.querySelector(".status-text");
+
+      dot.className = `status-dot ${data.status === "ok" ? "online" : "offline"}`;
+      text.textContent = data.status === "ok" ? "System online" : "System unavailable";
+      backendLabel.textContent = String(data.data_backend || "unknown").toUpperCase();
+      aiLabel.textContent = data.ai_enabled ? `${String(data.ai_provider || "ai").toUpperCase()} ready` : "Unavailable";
+    } catch (error) {
+      const dot = healthIndicator.querySelector(".status-dot");
+      const text = healthIndicator.querySelector(".status-text");
+      dot.className = "status-dot offline";
+      text.textContent = "Health check failed";
+      backendLabel.textContent = "Unknown";
+      aiLabel.textContent = "Unavailable";
+    }
+  }
+
+  window.switchPanel = function switchPanel(panelId) {
+    navButtons.forEach((button) => {
+      button.classList.toggle("active", button.dataset.panel === panelId);
+    });
+    panels.forEach((panel) => {
+      panel.classList.toggle("active", panel.id === `panel-${panelId}`);
+    });
+
+    if (panelId === "dashboard") {
+      loadDashboard();
+    } else if (panelId === "history") {
+      loadHistory();
+    } else if (panelId === "rules") {
+      loadRules();
+    }
+  };
+
+  navButtons.forEach((button) => {
+    button.addEventListener("click", () => window.switchPanel(button.dataset.panel));
+  });
+
+  clearButton?.addEventListener("click", () => {
+    codeInput.value = "";
+  });
+
+  historyRefreshButton?.addEventListener("click", () => {
+    loadHistory();
+  });
+
+  scanButton?.addEventListener("click", async () => {
+    const filename = filenameInput.value.trim();
+    const code = codeInput.value.trim();
+
+    if (!filename || !code) {
+      scanResults.innerHTML = `
+        <div class="scan-status-banner needs_attention">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>Provide both a filename and code snippet before scanning.</span>
+        </div>
+      `;
+      return;
+    }
+
+    scanButton.disabled = true;
+    scanButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Scanning...</span>';
+
+    try {
+      const scan = await fetchJson("/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename, code }),
+      });
+      renderScanResults(scan);
+      await loadDashboard();
+      await loadHistory();
+    } catch (error) {
+      scanResults.innerHTML = `
+        <div class="scan-status-banner needs_attention">
+          <i class="fa-solid fa-circle-exclamation"></i>
+          <span>${escapeHtml(error.message)}</span>
+        </div>
+      `;
+    } finally {
+      scanButton.disabled = false;
+      scanButton.innerHTML = '<i class="fa-solid fa-shield-virus"></i><span>Scan for Vulnerabilities</span>';
+    }
+  });
+
+  document.getElementById("scan-modal-close")?.addEventListener("click", () => closeModal(scanModal));
+  document.getElementById("fix-modal-close")?.addEventListener("click", () => closeModal(fixModal));
+  scanModal?.addEventListener("click", (event) => {
+    if (event.target === scanModal) closeModal(scanModal);
+  });
+  fixModal?.addEventListener("click", (event) => {
+    if (event.target === fixModal) closeModal(fixModal);
+  });
+
+  document.addEventListener("click", (event) => {
+    const scanTrigger = event.target.closest(".scan-item[data-scan-id]");
+    if (scanTrigger) {
+      viewScanDetails(scanTrigger.dataset.scanId);
+      return;
+    }
+
+    const fixTrigger = event.target.closest(".ai-fix-btn");
+    if (fixTrigger) {
+      const index = Number(fixTrigger.dataset.findingIndex);
+      const context = fixTrigger.dataset.scanContext;
+      const finding = context === "detail" ? currentScanDetail?.findings?.[index] : latestScannerResult?.findings?.[index];
+      requestAIFix(finding);
+    }
+  });
+
+  checkHealth();
+  Promise.allSettled([loadRules(), loadDashboard(), loadHistory()]);
+  setInterval(checkHealth, 30000);
 });
