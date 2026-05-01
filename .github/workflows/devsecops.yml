@@ -1,55 +1,71 @@
-name: DevSecOps Pipeline
+name: DevSecOps CI
 
 on:
   push:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   security-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-          
+          cache: 'pip'
+
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt bandit safety semgrep requests
-          
-      - name: Run SAST Scans
+          pip install -r requirements.txt
+
+      - name: Run unit tests
+        run: python -m unittest discover -s tests -v
+
+      - name: Run SAST scans
         run: python security/scanner.py
-        continue-on-error: true
-        
-      - name: Run Dependency Scan
-        run: safety check --json > safety_report.json || true
-        
-      - name: AI Remediation Guidance
+
+      - name: Run dependency scan
+        run: safety check -r requirements.txt --save-json safety_report.json || true
+
+      - name: Generate AI remediation guidance report
         run: python security/ai_remediation.py
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        continue-on-error: true
-          
+          OPENAI_MODEL: ${{ vars.OPENAI_MODEL }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          AI_PROVIDER: ${{ vars.AI_PROVIDER }}
+
       - name: Build Docker image
         run: docker build -t devsecops-app .
-        
-      - name: Container Security Scan (Trivy)
+
+      - name: Container security scan (Trivy)
         uses: aquasecurity/trivy-action@master
         with:
           image-ref: devsecops-app
           format: table
           exit-code: '0'
           severity: 'CRITICAL,HIGH'
-          
-      - name: Upload Security Reports
+
+      - name: Upload security reports
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: security-reports
+          if-no-files-found: warn
           path: |
             bandit_report.json
             semgrep_report.json

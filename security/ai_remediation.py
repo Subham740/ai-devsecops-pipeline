@@ -215,3 +215,32 @@ The response must be concise, practical, and production-oriented.
             recommendation=recommendation,
             error=str(exc),
         )
+
+
+def write_remediation_report(
+    output_path: str = "remediation_report.md", *, config: dict[str, Any] | None = None
+) -> str:
+    provider = get_active_provider(config) or "fallback"
+    lines = [
+        "# AI Remediation Report",
+        "",
+        f"- Active provider: `{provider}`",
+        "- Status: baseline remediation guidance is available for scanner findings.",
+        "- Source: runtime configuration and configured CI secrets.",
+    ]
+
+    if provider == "fallback":
+        lines.append("- Note: no AI API key is configured, so CI will use built-in remediation guidance.")
+    else:
+        lines.append("- Note: AI-backed remediation is configured for interactive use in the application.")
+
+    with open(output_path, "w", encoding="utf-8") as handle:
+        handle.write("\n".join(lines) + "\n")
+
+    return output_path
+
+
+if __name__ == "__main__":
+    report_path = os.getenv("REMEDIATION_REPORT_PATH", "remediation_report.md")
+    saved_to = write_remediation_report(report_path)
+    print(f"Remediation report written to {saved_to}")

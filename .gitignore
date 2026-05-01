@@ -9,3 +9,7 @@ __pycache__/
 !.env.example
 .pytest_cache/
 .coverage
+bandit_report.json
+semgrep_report.json
+safety_report.json
+remediation_report.md

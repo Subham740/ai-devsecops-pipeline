@@ -4,8 +4,8 @@ import os
 app = create_app()
 
 if __name__ == "__main__":
-    # Use environment variable for port, default to 5001 if 5000 is busy
-    port = int(os.getenv("PORT", 5001))
+    # Use the standard app port by default; override with PORT when needed.
+    port = int(os.getenv("PORT", 5000))
     host = os.getenv("HOST", "0.0.0.0")
     debug = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "t")
 

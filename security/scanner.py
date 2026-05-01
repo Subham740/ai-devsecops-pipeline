@@ -1,9 +1,14 @@
 from __future__ import annotations
 
 import json
+import os
 import re
+import shutil
+import site
 import subprocess
 import sys
+import sysconfig
+from pathlib import Path
 
 RULE_CATALOG = [
     {
@@ -51,26 +56,94 @@ RULE_CATALOG = [
 RULE_INDEX = {rule["id"]: rule for rule in RULE_CATALOG}
 
 
+def _script_directories() -> list[Path]:
+    candidates: list[Path] = []
+    script_path = sysconfig.get_path("scripts")
+    if script_path:
+        candidates.append(Path(script_path))
+
+    user_base = site.getuserbase()
+    if user_base:
+        candidates.append(Path(user_base) / ("Scripts" if sys.platform.startswith("win") else "bin"))
+
+    user_site = site.getusersitepackages()
+    if user_site:
+        user_site_parent = Path(user_site).resolve().parent
+        candidates.append(user_site_parent / ("Scripts" if sys.platform.startswith("win") else "bin"))
+
+    executable_dir = Path(sys.executable).resolve().parent
+    candidates.append(executable_dir)
+    candidates.append(executable_dir / ("Scripts" if sys.platform.startswith("win") else "bin"))
+
+    unique_candidates: list[Path] = []
+    seen: set[Path] = set()
+    for candidate in candidates:
+        if candidate in seen:
+            continue
+        seen.add(candidate)
+        unique_candidates.append(candidate)
+    return unique_candidates
+
+
+def _resolve_cli(tool_name: str) -> str:
+    resolved = shutil.which(tool_name)
+    if resolved:
+        return resolved
+
+    names = [tool_name]
+    if sys.platform.startswith("win"):
+        names = [f"{tool_name}.exe", f"{tool_name}.cmd", f"{tool_name}.bat", tool_name]
+
+    for directory in _script_directories():
+        for name in names:
+            candidate = directory / name
+            if candidate.is_file():
+                return str(candidate)
+
+    raise FileNotFoundError(
+        f"Required CLI tool '{tool_name}' was not found. Install it and ensure its scripts directory is available."
+    )
+
+
+def _run_json_command(label: str, cmd: list[str]) -> dict:
+    env = os.environ.copy()
+    env.setdefault("PYTHONUTF8", "1")
+    env.setdefault("PYTHONIOENCODING", "utf-8")
+    result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", env=env)
+    if result.stdout.strip():
+        try:
+            return json.loads(result.stdout)
+        except json.JSONDecodeError:
+            pass
+
+    error_message = result.stderr.strip() or result.stdout.strip() or f"{label} produced no JSON output."
+    print(f"{label} scan error: {error_message}")
+    return {"status": "error", "tool": label.lower(), "error": error_message}
+
+
 def run_bandit():
     print("Running Bandit SAST...")
-    cmd = [sys.executable, "-m", "bandit", "-r", "app/", "-f", "json"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
     try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        print("Error parsing Bandit output")
-        return {}
+        cmd = [_resolve_cli("bandit"), "-r", "app/", "-f", "json"]
+    except FileNotFoundError as exc:
+        print(str(exc))
+        return {"status": "error", "tool": "bandit", "error": str(exc)}
+    return _run_json_command("Bandit", cmd)
 
 
 def run_semgrep():
     print("Running Semgrep SAST...")
-    cmd = ["semgrep", "--config", "auto", "app/", "--json"]
-    result = subprocess.run(cmd, capture_output=True, text=True)
     try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError:
-        print("Error parsing Semgrep output")
-        return {}
+        try:
+            semgrep_cli = _resolve_cli("pysemgrep")
+        except FileNotFoundError:
+            semgrep_cli = _resolve_cli("semgrep")
+        config_path = "semgrep.yml" if Path("semgrep.yml").is_file() else "auto"
+        cmd = [semgrep_cli, "--config", config_path, "app/", "--json"]
+    except FileNotFoundError as exc:
+        print(str(exc))
+        return {"status": "error", "tool": "semgrep", "error": str(exc)}
+    return _run_json_command("Semgrep", cmd)
 
 
 def get_rule_catalog():
