@@ -45,6 +45,19 @@ def _build_scan_stats(scans: list[dict[str, Any]]) -> dict[str, Any]:
     needs_attention_scans = sum(1 for scan in scans if scan["status"] == "needs_attention")
     failed_scans = sum(1 for scan in scans if scan["status"] == "failed")
     total_findings = sum(int(scan["finding_count"]) for scan in scans)
+    risk_score = sum(
+        float(finding.get("risk_weight", 0))
+        for scan in scans
+        for finding in scan.get("findings", [])
+    )
+    max_cvss = max(
+        [
+            float(finding.get("cvss", 0))
+            for scan in scans
+            for finding in scan.get("findings", [])
+        ]
+        or [0.0]
+    )
     success_rate = round((passed_scans / total_scans) * 100, 1) if total_scans else 0.0
 
     return {
@@ -53,6 +66,8 @@ def _build_scan_stats(scans: list[dict[str, Any]]) -> dict[str, Any]:
         "needs_attention_scans": needs_attention_scans,
         "failed_scans": failed_scans,
         "total_findings": total_findings,
+        "risk_score": round(risk_score, 1),
+        "max_cvss": round(max_cvss, 1),
         "success_rate": success_rate,
         "last_updated": _utc_now().replace(microsecond=0).isoformat(),
     }
@@ -88,6 +103,7 @@ def _build_dashboard_metrics(scans: list[dict[str, Any]]) -> dict[str, Any]:
     rule_breakdown: dict[str, int] = {}
     severity_breakdown: dict[str, int] = {}
     status_breakdown: dict[str, int] = {}
+    cvss_breakdown: dict[str, int] = {"0.0-3.9": 0, "4.0-6.9": 0, "7.0-8.9": 0, "9.0-10.0": 0}
 
     for scan in scans:
         status_breakdown[scan["status"]] = status_breakdown.get(scan["status"], 0) + 1
@@ -95,10 +111,20 @@ def _build_dashboard_metrics(scans: list[dict[str, Any]]) -> dict[str, Any]:
             rule_breakdown[finding["id"]] = rule_breakdown.get(finding["id"], 0) + 1
             severity = finding.get("severity", "unknown")
             severity_breakdown[severity] = severity_breakdown.get(severity, 0) + 1
+            cvss = float(finding.get("cvss", 0))
+            if cvss >= 9:
+                cvss_breakdown["9.0-10.0"] += 1
+            elif cvss >= 7:
+                cvss_breakdown["7.0-8.9"] += 1
+            elif cvss >= 4:
+                cvss_breakdown["4.0-6.9"] += 1
+            else:
+                cvss_breakdown["0.0-3.9"] += 1
 
     stats["rule_breakdown"] = rule_breakdown
     stats["severity_breakdown"] = severity_breakdown
     stats["status_breakdown"] = status_breakdown
+    stats["cvss_breakdown"] = cvss_breakdown
     return stats
 
 

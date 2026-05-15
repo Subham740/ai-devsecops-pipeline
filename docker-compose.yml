@@ -19,6 +19,9 @@ services:
       - "3000:3000"
     environment:
       - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboard.json:/var/lib/grafana/dashboards/devsecops-risk-dashboard.json
     depends_on:
       - prometheus
     restart: unless-stopped

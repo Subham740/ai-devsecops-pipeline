@@ -145,7 +145,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="finding-item__header">
               <div>
                 <div class="finding-item__title">${escapeHtml(finding.title)}</div>
-                <div class="finding-item__meta">Rule ${escapeHtml(finding.id)} | ${escapeHtml(finding.cwe || "")} | Line ${escapeHtml(finding.line)}</div>
+                <div class="finding-item__meta">Rule ${escapeHtml(finding.id)} | ${escapeHtml(finding.cwe || "")} | CVSS ${escapeHtml(finding.cvss ?? "N/A")} | Line ${escapeHtml(finding.line)}</div>
               </div>
               <span class="badge badge--${escapeHtml(finding.severity)}">${escapeHtml(finding.severity)}</span>
             </div>
@@ -210,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
             <div class="detail-finding__top">
               <div>
                 <div class="detail-finding__title">${escapeHtml(finding.title)} (${escapeHtml(finding.id)})</div>
-                <div class="detail-finding__meta">${escapeHtml(finding.filename)} | Line ${escapeHtml(finding.line)} | ${escapeHtml(finding.cwe || "")}</div>
+                <div class="detail-finding__meta">${escapeHtml(finding.filename)} | Line ${escapeHtml(finding.line)} | ${escapeHtml(finding.cwe || "")} | CVSS ${escapeHtml(finding.cvss ?? "N/A")}</div>
               </div>
               <span class="badge badge--${escapeHtml(finding.severity)}">${escapeHtml(finding.severity)}</span>
             </div>
@@ -252,6 +252,11 @@ document.addEventListener("DOMContentLoaded", () => {
   async function requestAIFix(finding) {
     if (!finding) return;
 
+    const remediationCode =
+      finding.id === "SYNTAX001"
+        ? codeInput.value.trim() || finding.excerpt || finding.message || ""
+        : finding.excerpt || finding.message || "";
+
     fixModalBody.innerHTML = `
       <div class="empty-state">
         <i class="fa-solid fa-robot fa-spin"></i>
@@ -268,18 +273,26 @@ document.addEventListener("DOMContentLoaded", () => {
           finding_id: finding.id,
           title: finding.title,
           description: finding.description,
-          code: finding.excerpt || finding.message || "",
+          code: remediationCode,
         }),
       });
 
       const bestPractices = Array.isArray(data.best_practices)
         ? data.best_practices.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
         : "";
+      const validationSteps = Array.isArray(data.validation_steps)
+        ? data.validation_steps.map((item) => `<li>${escapeHtml(item)}</li>`).join("")
+        : "";
 
       fixModalBody.innerHTML = `
         <div class="ai-recommendation">
           <strong>${escapeHtml(data.title || finding.title)}</strong>
           <p>${escapeHtml(data.explanation || "")}</p>
+          ${
+            data.severity || data.cvss
+              ? `<p><strong>AI risk classification:</strong> ${escapeHtml(data.severity || "unknown")} severity${data.cvss ? `, CVSS ${escapeHtml(data.cvss)}` : ""}</p>`
+              : ""
+          }
           <p><strong>Recommended change:</strong> ${escapeHtml(data.recommendation || "")}</p>
           ${data.warning ? `<p><strong>Note:</strong> ${escapeHtml(data.warning)}</p>` : ""}
         </div>
@@ -291,6 +304,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <pre class="ai-code-content"><code>${escapeHtml(data.secure_example || "")}</code></pre>
         </div>
         ${bestPractices ? `<ul class="best-practice-list">${bestPractices}</ul>` : ""}
+        ${validationSteps ? `<ul class="best-practice-list">${validationSteps}</ul>` : ""}
       `;
     } catch (error) {
       fixModalBody.innerHTML = `
@@ -327,6 +341,8 @@ document.addEventListener("DOMContentLoaded", () => {
       document.getElementById("metric-total-findings").textContent = metrics.total_findings;
       document.getElementById("metric-passed").textContent = metrics.passed_scans;
       document.getElementById("metric-attention").textContent = metrics.needs_attention_scans;
+      document.getElementById("metric-risk-score").textContent = metrics.risk_score ?? 0;
+      document.getElementById("metric-max-cvss").textContent = metrics.max_cvss ?? 0;
 
       renderRuleBreakdown(metrics.rule_breakdown || {});
       renderScanRows(recentResponse.scans, recentScansList, "No scans recorded yet.");

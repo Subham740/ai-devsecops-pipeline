@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import json
 import os
 import re
@@ -12,10 +13,22 @@ from pathlib import Path
 
 RULE_CATALOG = [
     {
+        "id": "SYNTAX001",
+        "title": "Python Syntax Error",
+        "severity": "high",
+        "cwe": "N/A",
+        "cvss": 6.5,
+        "risk_weight": 7,
+        "description": "The submitted Python code cannot be parsed because it contains invalid syntax.",
+        "recommendation": "Fix the Python syntax error before relying on security scan results.",
+    },
+    {
         "id": "SQLI001",
         "title": "SQL Injection",
         "severity": "high",
         "cwe": "CWE-89",
+        "cvss": 8.8,
+        "risk_weight": 9,
         "description": "Untrusted input is interpolated directly into a SQL query.",
         "recommendation": "Use parameterized queries and pass user input separately from the SQL string.",
     },
@@ -24,6 +37,8 @@ RULE_CATALOG = [
         "title": "Command Injection",
         "severity": "critical",
         "cwe": "CWE-78",
+        "cvss": 9.8,
+        "risk_weight": 10,
         "description": "User-controlled input is reaching a shell command or shell-enabled subprocess call.",
         "recommendation": "Avoid shell=True and os.system. Validate input and pass command arguments as a list.",
     },
@@ -32,6 +47,8 @@ RULE_CATALOG = [
         "title": "Dynamic Code Execution",
         "severity": "critical",
         "cwe": "CWE-94",
+        "cvss": 9.8,
+        "risk_weight": 10,
         "description": "Dangerous dynamic execution function is invoked on potentially untrusted data.",
         "recommendation": "Remove eval or exec on untrusted data. Use structured parsing instead.",
     },
@@ -40,6 +57,8 @@ RULE_CATALOG = [
         "title": "Unsafe Deserialization",
         "severity": "high",
         "cwe": "CWE-502",
+        "cvss": 8.1,
+        "risk_weight": 8,
         "description": "Unsafe deserialization function can execute attacker-controlled payloads.",
         "recommendation": "Avoid pickle.loads and unsafe yaml.load. Prefer safe, schema-validated formats.",
     },
@@ -48,6 +67,8 @@ RULE_CATALOG = [
         "title": "Hardcoded Secret",
         "severity": "medium",
         "cwe": "CWE-798",
+        "cvss": 7.5,
+        "risk_weight": 6,
         "description": "Secret-like value appears to be hardcoded in source code.",
         "recommendation": "Move secrets to environment variables or a secrets manager and rotate exposed values.",
     },
@@ -139,7 +160,10 @@ def run_semgrep():
         except FileNotFoundError:
             semgrep_cli = _resolve_cli("semgrep")
         config_path = "semgrep.yml" if Path("semgrep.yml").is_file() else "auto"
-        cmd = [semgrep_cli, "--config", config_path, "app/", "--json"]
+        targets = ["app/"]
+        if Path("sample-java-spring-boot").is_dir():
+            targets.append("sample-java-spring-boot/")
+        cmd = [semgrep_cli, "--config", config_path, *targets, "--json"]
     except FileNotFoundError as exc:
         print(str(exc))
         return {"status": "error", "tool": "semgrep", "error": str(exc)}
@@ -168,6 +192,8 @@ def _build_finding(rule_id: str, filename: str, line: int, message: str, excerpt
         "name": rule["title"],
         "severity": rule["severity"],
         "cwe": rule["cwe"],
+        "cvss": rule["cvss"],
+        "risk_weight": rule["risk_weight"],
         "description": rule["description"],
         "recommendation": rule["recommendation"],
         "message": message,
@@ -175,6 +201,30 @@ def _build_finding(rule_id: str, filename: str, line: int, message: str, excerpt
         "line": line,
         "excerpt": excerpt or "",
     }
+
+
+def _syntax_finding(code: str, filename: str) -> dict | None:
+    try:
+        ast.parse(code, filename=filename)
+    except SyntaxError as exc:
+        line_no = exc.lineno or 1
+        lines = code.splitlines()
+        excerpt = exc.text.strip() if exc.text else ""
+        if not excerpt and 1 <= line_no <= len(lines):
+            excerpt = lines[line_no - 1].strip()
+
+        detail = exc.msg or "Invalid Python syntax."
+        if exc.offset:
+            detail = f"{detail} at column {exc.offset}."
+
+        return _build_finding(
+            "SYNTAX001",
+            filename,
+            line_no,
+            f"Python syntax error: {detail}",
+            excerpt=excerpt,
+        )
+    return None
 
 
 def _has_unsafe_yaml_load(line: str) -> bool:
@@ -187,6 +237,10 @@ def scan_code(code, filename):
     findings = []
     seen = set()
     lines = code.splitlines()
+
+    syntax_issue = _syntax_finding(code, filename)
+    if syntax_issue:
+        findings.append(syntax_issue)
 
     for line_no, raw_line in enumerate(lines, start=1):
         line = raw_line.strip()

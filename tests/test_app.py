@@ -72,7 +72,7 @@ class AppTests(unittest.TestCase):
 
     def test_scan_persists_and_returns_history(self):
         self.login()
-        code = "import subprocess\\nsubprocess.run(cmd, shell=True)"
+        code = "import subprocess\nsubprocess.run(cmd, shell=True)"
         scan_response = self.client.post("/scan", json={"code": code, "filename": "job.py"})
 
         self.assertEqual(scan_response.status_code, 200)
@@ -107,6 +107,13 @@ class AppTests(unittest.TestCase):
         self.assertEqual(metrics_response.status_code, 200)
         self.assertEqual(metrics_data["status"], "ok")
         self.assertEqual(metrics_data["metrics"]["rule_breakdown"]["CMDI001"], 1)
+        self.assertGreater(metrics_data["metrics"]["risk_score"], 0)
+        self.assertGreater(metrics_data["metrics"]["max_cvss"], 0)
+
+        prometheus_response = self.client.get("/prometheus")
+        prometheus_text = prometheus_response.get_data(as_text=True)
+        self.assertEqual(prometheus_response.status_code, 200)
+        self.assertIn("devsecops_risk_score", prometheus_text)
 
     def test_scan_rejects_path_traversal(self):
         self.login()

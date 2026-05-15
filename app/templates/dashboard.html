@@ -101,6 +101,16 @@
                     <div class="metric-card__value" id="metric-attention">{{ dashboard_metrics.needs_attention_scans }}</div>
                     <div class="metric-card__label">Need attention</div>
                 </article>
+                <article class="metric-card metric-card--findings">
+                    <div class="metric-card__icon"><i class="fa-solid fa-gauge-high"></i></div>
+                    <div class="metric-card__value" id="metric-risk-score">{{ dashboard_metrics.risk_score }}</div>
+                    <div class="metric-card__label">Risk score</div>
+                </article>
+                <article class="metric-card metric-card--attention">
+                    <div class="metric-card__icon"><i class="fa-solid fa-fire-flame-curved"></i></div>
+                    <div class="metric-card__value" id="metric-max-cvss">{{ dashboard_metrics.max_cvss }}</div>
+                    <div class="metric-card__label">Max CVSS</div>
+                </article>
             </div>
 
             <div class="overview-grid">

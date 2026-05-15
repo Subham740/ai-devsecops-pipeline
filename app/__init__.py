@@ -1,4 +1,4 @@
-from flask import Flask, current_app, redirect, url_for
+from flask import Flask, Response, current_app, redirect, url_for
 from flask_login import LoginManager
 
 from app.storage import create_storage
@@ -74,6 +74,30 @@ def create_app(test_config=None):
                 "mongodb_enabled": using_mongo,
                 "mongodb_connected": storage_state["connected"] if using_mongo else False,
             }
+
+        @app.route("/prometheus")
+        def prometheus_metrics():
+            metrics = current_app.extensions["storage"].get_dashboard_metrics()
+            severity_breakdown = metrics.get("severity_breakdown", {})
+            lines = [
+                "# HELP devsecops_scans_total Total scans stored by the dashboard.",
+                "# TYPE devsecops_scans_total gauge",
+                f"devsecops_scans_total {metrics.get('total_scans', 0)}",
+                "# HELP devsecops_findings_total Total findings stored by the dashboard.",
+                "# TYPE devsecops_findings_total gauge",
+                f"devsecops_findings_total {metrics.get('total_findings', 0)}",
+                "# HELP devsecops_risk_score CVSS-enriched aggregate risk score.",
+                "# TYPE devsecops_risk_score gauge",
+                f"devsecops_risk_score {metrics.get('risk_score', 0)}",
+                "# HELP devsecops_max_cvss Highest CVSS score currently stored.",
+                "# TYPE devsecops_max_cvss gauge",
+                f"devsecops_max_cvss {metrics.get('max_cvss', 0)}",
+                "# HELP devsecops_findings_by_severity Stored findings grouped by severity.",
+                "# TYPE devsecops_findings_by_severity gauge",
+            ]
+            for severity, count in sorted(severity_breakdown.items()):
+                lines.append(f'devsecops_findings_by_severity{{severity="{severity}"}} {count}')
+            return Response("\n".join(lines) + "\n", mimetype="text/plain; version=0.0.4")
 
         if app.config.get("DEMO_USERNAME"):
             current_app.extensions["storage"].ensure_demo_user(

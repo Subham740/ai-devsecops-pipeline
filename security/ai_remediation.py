@@ -171,13 +171,16 @@ def generate_remediation(
         )
 
     prompt = f"""
-You are reviewing a vulnerable Python code snippet for a DevSecOps dashboard.
+You are reviewing a Python code snippet for a DevSecOps dashboard.
 
 Return valid JSON with these keys only:
 - explanation: string
 - recommendation: string
 - secure_example: string
 - best_practices: array of strings
+- severity: one of critical, high, medium, low
+- cvss: number from 0.0 to 10.0
+- validation_steps: array of strings
 
 Finding ID: {vulnerability_type}
 Finding Title: {title or vulnerability_type}
@@ -206,6 +209,9 @@ The response must be concise, practical, and production-oriented.
             "recommendation": ai_result.get("recommendation") or recommendation or "",
             "secure_example": ai_result.get("secure_example") or recommendation or "",
             "best_practices": ai_result.get("best_practices") or [],
+            "severity": ai_result.get("severity"),
+            "cvss": ai_result.get("cvss"),
+            "validation_steps": ai_result.get("validation_steps") or [],
         }
     except Exception as exc:
         return _fallback_remediation(

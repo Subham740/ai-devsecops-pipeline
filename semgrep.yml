@@ -27,3 +27,16 @@ rules:
     message: Do not enable Flask debug mode in deployed environments.
     severity: WARNING
     languages: [python]
+  - id: java-runtime-exec-user-input
+    pattern: Runtime.getRuntime().exec("..." + $INPUT)
+    message: Avoid building OS commands with request-controlled input. Validate allow-listed values and pass arguments safely.
+    severity: ERROR
+    languages: [java]
+  - id: java-hardcoded-password
+    pattern: private static final String $NAME = "..."
+    metavariable-regex:
+      metavariable: $NAME
+      regex: (?i).*(password|secret|token|key).*
+    message: Do not hardcode secrets in Java source. Use environment variables or a secrets manager.
+    severity: WARNING
+    languages: [java]

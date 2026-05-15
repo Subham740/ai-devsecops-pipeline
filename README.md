@@ -9,7 +9,13 @@ This project is a Flask-based DevSecOps workspace for scanning Python snippets, 
 - Interactive dashboard with real metrics, scan history, and rule catalog
 - Clickable stored scans that open detailed finding views
 - AI remediation endpoint that can call Gemini and falls back gracefully when AI is unavailable
+- AI risk classification output for remediation responses, including severity, CVSS, and validation steps when the provider returns them
+- CVSS-enriched dashboard metrics, Prometheus export, and Grafana risk dashboard provisioning
+- Unified CI/CD security pipeline with Semgrep, Safety, OWASP ZAP, Trivy, and AI remediation reporting
+- On-demand GitHub Actions remediation PR workflow
+- Sample Java Spring Boot validation target under `sample-java-spring-boot/`
 - Heuristic Python security scanner with rules for:
+  - Python Syntax Errors
   - SQL Injection
   - Command Injection
   - Dynamic Code Execution
@@ -51,6 +57,7 @@ http://127.0.0.1:5000
 - `/health` - backend and AI provider status
 - `/dashboard` - main application UI
 - `/metrics` - dashboard metrics JSON
+- `/prometheus` - Prometheus scrape endpoint for Grafana
 - `/rules` - active scanner rule catalog
 - `/scans` - stored scan history
 - `/fix` - AI remediation for a finding
@@ -64,4 +71,32 @@ python -m unittest tests.test_scanner -v
 
 ## Monitoring
 
-- Grafana configuration lives under `grafana/`
+- Prometheus configuration lives in `prometheus.yml`
+- Grafana provisioning and the CVSS risk dashboard live under `grafana/`
+
+```bash
+docker compose up prometheus grafana
+```
+
+Grafana URL:
+
+```text
+http://127.0.0.1:3000
+```
+
+Default local credentials are `admin` / `admin`.
+
+## CI/CD Security Pipeline
+
+The GitHub Actions workflow runs:
+
+- Unit tests
+- Semgrep/Bandit SAST through `security/scanner.py`
+- Safety dependency scanning
+- OWASP ZAP baseline DAST against the running Flask app
+- Gemini/OpenAI remediation report generation
+- Docker image build
+- Trivy container scanning
+- Security report artifact upload
+
+The `remediation-pr` job runs on `workflow_dispatch` and opens a pull request with generated remediation branch content.
