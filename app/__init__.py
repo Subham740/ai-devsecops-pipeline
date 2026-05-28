@@ -1,4 +1,4 @@
-from flask import Flask, Response, current_app, redirect, url_for
+from flask import Flask, Response, current_app, render_template
 from flask_login import LoginManager
 
 from app.storage import create_storage
@@ -47,7 +47,7 @@ def create_app(test_config=None):
 
         @app.route("/")
         def home():
-            return redirect(url_for("auth.login"))
+            return render_template("index.html")
 
         @app.route("/health")
         def health():

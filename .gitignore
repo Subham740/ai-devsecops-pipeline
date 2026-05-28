@@ -16,3 +16,5 @@ remediation_report.md
 zap_report.html
 flask_ci.log
 flask_jenkins.log
+
+sample-java-spring-boot/target/

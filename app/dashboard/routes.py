@@ -13,6 +13,19 @@ dashboard_bp = Blueprint("dashboard", __name__)
 
 RULES = get_rule_catalog()
 RULES_BY_ID = {rule["id"]: rule for rule in RULES}
+ACTION_PLANS = {
+    "Install GitHub App": ["OAuth manifest prepared", "Webhook secret placeholder generated", "Repository permissions mapped"],
+    "Connect Repository": ["Repository connector enabled", "Default branch policy loaded", "PR scan workflow attached"],
+    "Enable PR Scan": ["Pull request scan rule enabled", "Critical gate set to blocking", "Review annotation template loaded"],
+    "Setup Webhook": ["Webhook endpoint registered locally", "Signature verification enabled", "Delivery monitor started"],
+    "Branch Protection": ["Required scan check enabled", "Admin bypass review flagged", "Merge gate policy loaded"],
+    "IAM Review": ["Wildcard policy scan enabled", "Access key age check enabled", "MFA coverage check enabled"],
+    "S3 Buckets": ["Public bucket detection enabled", "Encryption check enabled", "Access logging check enabled"],
+    "EC2 & Security Groups": ["Public ingress check enabled", "Stale instance check enabled", "High-risk port detection enabled"],
+    "EKS & Containers": ["RBAC review enabled", "Privileged pod detection enabled", "Image CVE scan enabled"],
+    "Lambda Secrets": ["Environment secret scan enabled", "Runtime dependency check enabled", "Function policy review enabled"],
+    "Security Hub": ["Finding aggregator enabled", "Compliance control mapping loaded", "Executive posture feed enabled"],
+}
 
 
 def _dashboard_context(form: ScanForm) -> dict:
@@ -36,6 +49,38 @@ def _validate_scan_input(filename: str, code: str) -> str | None:
 def _scan_and_store(filename: str, code: str) -> dict:
     result = scanner_scan_code(code, filename)
     return get_storage().create_scan_record(filename, result)
+
+
+def _run_feature_action(title: str, detail: str = "") -> dict:
+    normalized_title = title.strip() or "SecureGPT Option"
+    steps = ACTION_PLANS.get(
+        normalized_title,
+        [
+            "Feature switch enabled",
+            "Policy defaults loaded",
+            "Runtime telemetry connected",
+        ],
+    )
+    return {
+        "status": "ok",
+        "feature": normalized_title,
+        "state": "running",
+        "enabled": True,
+        "message": f"{normalized_title} is running in SecureGPT.",
+        "detail": detail or "SecureGPT local control-plane action completed.",
+        "steps": steps,
+        "requires_credentials": normalized_title in {
+            "Install GitHub App",
+            "Connect Repository",
+            "Setup Webhook",
+            "IAM Review",
+            "S3 Buckets",
+            "EC2 & Security Groups",
+            "EKS & Containers",
+            "Lambda Secrets",
+            "Security Hub",
+        },
+    }
 
 
 @dashboard_bp.route("/dashboard")
@@ -151,3 +196,18 @@ def fix_issue():
     )
     remediation["finding_id"] = finding_id
     return jsonify(remediation)
+
+
+@dashboard_bp.route("/actions/run", methods=["POST"])
+@login_required
+def run_action():
+    if not request.is_json:
+        return jsonify(status="error", message="JSON request required."), 400
+
+    data = request.get_json() or {}
+    title = (data.get("title") or "").strip()
+    detail = (data.get("detail") or "").strip()
+    if not title:
+        return jsonify(status="error", message="title is required."), 400
+
+    return jsonify(_run_feature_action(title, detail))

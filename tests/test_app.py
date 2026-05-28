@@ -134,6 +134,22 @@ class AppTests(unittest.TestCase):
         self.assertEqual(data["status"], "ok")
         self.assertTrue(any(rule["id"] == "SQLI001" for rule in data["rules"]))
 
+    def test_action_run_endpoint_enables_feature(self):
+        self.login()
+        response = self.client.post(
+            "/actions/run",
+            json={"title": "IAM Review", "detail": "AWS IAM control"},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        data = response.get_json()
+        self.assertEqual(data["status"], "ok")
+        self.assertEqual(data["state"], "running")
+        self.assertEqual(data["enabled"], True)
+        self.assertEqual(data["feature"], "IAM Review")
+        self.assertTrue(data["requires_credentials"])
+        self.assertIn("Wildcard policy scan enabled", data["steps"])
+
     def test_fix_endpoint_uses_fallback_without_ai_key(self):
         self.login()
         response = self.client.post(

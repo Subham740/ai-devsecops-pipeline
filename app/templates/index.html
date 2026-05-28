@@ -1,202 +1,161 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="description" content="AI-Augmented DevSecOps Pipeline — Automated security scanning, vulnerability detection, and AI-powered remediation." />
-  <title>AI DevSecOps — Security Dashboard</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="/static/style.css" />
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="SecureGPT is an AI-powered autonomous DevSecOps platform that detects, predicts, and remediates vulnerabilities before deployment.">
+  <title>SecureGPT AI DevSecOps Platform</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
-  <!-- Animated Background -->
-  <div class="bg-grid"></div>
-  <div class="bg-glow bg-glow--1"></div>
-  <div class="bg-glow bg-glow--2"></div>
-  <div class="bg-glow bg-glow--3"></div>
+  <div class="matrix-field" aria-hidden="true"></div>
+  <div class="cyber-orbit cyber-orbit--one" aria-hidden="true"></div>
 
-  <!-- Header -->
-  <header class="header" id="header">
-    <div class="header__logo">
-      <div class="header__icon">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
-        </svg>
+  <main class="landing-page">
+    <nav class="landing-nav">
+      <a class="sg-brand" href="{{ url_for('home') }}">
+        <span class="sg-brand__mark"><i class="fa-solid fa-shield-halved"></i></span>
+        <span><strong>SecureGPT</strong><small>AI DevSecOps Platform</small></span>
+      </a>
+      <div class="landing-nav__links">
+        <a href="#features">Features</a>
+        <a href="#workflow">Workflow</a>
+        <a href="#pricing">Pricing</a>
+        <a class="btn btn--ghost btn--sm" href="{{ url_for('auth.login') }}">Sign In</a>
+        <a class="btn btn--primary btn--sm" href="{{ url_for('auth.register') }}">Start Secure Scan</a>
       </div>
-      <span class="header__title">AI DevSecOps</span>
-      <span class="header__badge">Pipeline</span>
-    </div>
-    <nav class="header__nav">
-      <button class="nav-btn active" data-panel="dashboard" id="nav-dashboard">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
-      </button>
-      <button class="nav-btn" data-panel="scanner" id="nav-scanner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
-        Scanner
-      </button>
-      <button class="nav-btn" data-panel="history" id="nav-history">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-        History
-      </button>
-      <button class="nav-btn" data-panel="rules" id="nav-rules">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
-        Rules
-      </button>
     </nav>
-    <div class="header__status" id="health-indicator">
-      <span class="status-dot"></span>
-      <span class="status-text">Checking…</span>
-    </div>
-  </header>
 
-  <!-- Main Content -->
-  <main class="main">
-
-    <!-- ===== DASHBOARD PANEL ===== -->
-    <section class="panel active" id="panel-dashboard">
-      <div class="panel__header">
-        <h1>Security Overview</h1>
-        <p class="panel__subtitle">Real-time metrics from your DevSecOps pipeline</p>
-      </div>
-
-      <div class="metrics-grid" id="metrics-grid">
-        <div class="metric-card metric-card--scans">
-          <div class="metric-card__icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </div>
-          <div class="metric-card__value" id="metric-total-scans">—</div>
-          <div class="metric-card__label">Total Scans</div>
-        </div>
-        <div class="metric-card metric-card--findings">
-          <div class="metric-card__icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-          </div>
-          <div class="metric-card__value" id="metric-total-findings">—</div>
-          <div class="metric-card__label">Total Findings</div>
-        </div>
-        <div class="metric-card metric-card--passed">
-          <div class="metric-card__icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
-          </div>
-          <div class="metric-card__value" id="metric-passed">—</div>
-          <div class="metric-card__label">Passed Scans</div>
-        </div>
-        <div class="metric-card metric-card--attention">
-          <div class="metric-card__icon">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-          </div>
-          <div class="metric-card__value" id="metric-attention">—</div>
-          <div class="metric-card__label">Needs Attention</div>
+    <section class="landing-hero">
+      <div class="landing-hero__content">
+        <div class="eyebrow">Enterprise AI-Augmented DevSecOps</div>
+        <h1>SecureGPT AI DevSecOps Platform</h1>
+        <p>AI-powered autonomous DevSecOps platform that detects, predicts, and remediates vulnerabilities before deployment.</p>
+        <div class="hero-actions">
+          <a class="btn btn--primary" href="{{ url_for('auth.register') }}"><i class="fa-solid fa-rocket"></i><span>Launch Workspace</span></a>
+          <a class="btn btn--ghost" href="#demo"><i class="fa-solid fa-circle-play"></i><span>View Product Demo</span></a>
         </div>
       </div>
 
-      <!-- Rule breakdown chart -->
-      <div class="glass-card" id="rule-chart-card">
-        <h2 class="glass-card__title">Findings by Rule</h2>
-        <div class="rule-bars" id="rule-bars">
-          <p class="placeholder-text">No scan data yet. Run a scan to see metrics.</p>
+      <div class="landing-hero__visual glass-panel">
+        <div class="terminal-window">
+          <div>> webhook: pull_request.opened</div>
+          <div>> semgrep: SQLI001 critical at api/users.py:42</div>
+          <div>> trivy: base image CVE detected</div>
+          <div class="terminal-ok">> SecureGPT: generated parameterized query patch</div>
+          <div class="terminal-warning">> deploy gate: blocked until approval</div>
         </div>
-      </div>
-
-      <!-- Recent scans quick view -->
-      <div class="glass-card">
-        <div class="glass-card__header">
-          <h2 class="glass-card__title">Recent Scans</h2>
-          <button class="btn btn--ghost" onclick="switchPanel('history')">View All →</button>
-        </div>
-        <div id="recent-scans-list" class="scan-list">
-          <p class="placeholder-text">Loading…</p>
+        <div class="landing-radar">
+          <span></span><span></span><span></span>
+          <strong>94</strong>
+          <small>posture score</small>
         </div>
       </div>
     </section>
 
-    <!-- ===== SCANNER PANEL ===== -->
-    <section class="panel" id="panel-scanner">
-      <div class="panel__header">
-        <h1>Code Scanner</h1>
-        <p class="panel__subtitle">Paste code to scan for security vulnerabilities</p>
+    <section class="landing-section" id="demo">
+      <div class="page-header">
+        <div>
+          <div class="eyebrow">Product Demo</div>
+          <h2>From vulnerable pull request to approved secure patch.</h2>
+        </div>
       </div>
-
-      <div class="scanner-layout">
-        <div class="glass-card scanner-input-card">
-          <div class="scanner-toolbar">
-            <span class="scanner-toolbar__label">Python Code</span>
-            <div class="scanner-toolbar__actions">
-              <button class="btn btn--ghost btn--sm" id="btn-load-example" title="Load example vulnerable code">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                Load Example
-              </button>
-              <button class="btn btn--ghost btn--sm" id="btn-clear-code" title="Clear editor">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Clear
-              </button>
-            </div>
+      <div class="landing-demo-grid">
+        <article class="glass-panel code-diff">
+          <div class="diff-column diff-column--before">
+            <h3>Detected Risk</h3>
+            <pre><code>- cursor.execute(f"SELECT * FROM users WHERE id={user_id}")
+- os.system(user_input)</code></pre>
           </div>
-          <textarea id="code-input" class="code-editor" spellcheck="false" placeholder="# Paste your Python code here…&#10;# Or click 'Load Example' to try a sample."></textarea>
-          <div class="scanner-actions">
-            <button class="btn btn--primary btn--lg" id="btn-scan">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              Scan for Vulnerabilities
-            </button>
+          <div class="diff-column diff-column--after">
+            <h3>SecureGPT Fix</h3>
+            <pre><code>+ cursor.execute("SELECT * FROM users WHERE id=?", (user_id,))
++ subprocess.run(allowed_command, check=True)</code></pre>
           </div>
-        </div>
-
-        <div class="glass-card scanner-results-card" id="scanner-results-card">
-          <h2 class="glass-card__title">Scan Results</h2>
-          <div id="scan-results" class="scan-results">
-            <div class="empty-state">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              <p>Run a scan to see results here</p>
-            </div>
-          </div>
-        </div>
+        </article>
+        <article class="glass-panel ai-confidence-card">
+          <h3>AI Remediation Showcase</h3>
+          <div class="confidence-ring"><strong>97%</strong><span>confidence</span></div>
+        </article>
       </div>
     </section>
 
-    <!-- ===== HISTORY PANEL ===== -->
-    <section class="panel" id="panel-history">
-      <div class="panel__header">
-        <h1>Scan History</h1>
-        <p class="panel__subtitle">Browse all previous scan runs</p>
-      </div>
-      <div class="glass-card">
-        <div id="history-list" class="scan-list scan-list--full">
-          <p class="placeholder-text">Loading…</p>
+    <section class="landing-section" id="features">
+      <div class="page-header">
+        <div>
+          <div class="eyebrow">Platform Capabilities</div>
+          <h2>One cockpit for application, dependency, secret, container, cloud, and compliance security.</h2>
         </div>
       </div>
+      <div class="landing-feature-grid">
+        {% for title, icon in [
+          ('Real-Time Vulnerability Scanner','fa-solid fa-radar'),
+          ('AI Auto-Fix Engine','fa-solid fa-wand-magic-sparkles'),
+          ('GitHub PR Security Comments','fa-brands fa-github'),
+          ('CI/CD Security Gates','fa-solid fa-diagram-project'),
+          ('Dependency CVE Scanner','fa-solid fa-cubes'),
+          ('Secret Detection Engine','fa-solid fa-key'),
+          ('AI Security Chat Assistant','fa-solid fa-robot'),
+          ('Docker & Kubernetes Security','fa-solid fa-dharmachakra'),
+          ('Cloud Security Dashboard','fa-solid fa-cloud'),
+          ('Compliance & Reporting','fa-solid fa-scale-balanced'),
+          ('Threat Prediction System','fa-solid fa-satellite-dish'),
+          ('Monitoring & Observability','fa-solid fa-chart-simple')
+        ] %}
+          <article class="glass-panel landing-feature-card">
+            <i class="{{ icon }}"></i>
+            <strong>{{ title }}</strong>
+            <span>Enterprise-grade controls with real-time telemetry and AI-guided remediation.</span>
+          </article>
+        {% endfor %}
+      </div>
     </section>
 
-    <!-- ===== RULES PANEL ===== -->
-    <section class="panel" id="panel-rules">
-      <div class="panel__header">
-        <h1>Rule Catalog</h1>
-        <p class="panel__subtitle">Security rules used by the scanner engine</p>
+    <section class="landing-section" id="workflow">
+      <div class="page-header">
+        <div>
+          <div class="eyebrow">Workflow</div>
+          <h2>Developer to deployment architecture with autonomous security gates.</h2>
+        </div>
       </div>
-      <div class="rules-grid" id="rules-grid">
-        <p class="placeholder-text">Loading…</p>
+      <div class="architecture-flow glass-panel">
+        {% for step in ['Developer','IDE','GitHub','CI/CD','AI Scanner','Detection','AI Auto Fix','Approval','Docker/Kubernetes','Deployment','Monitoring','Grafana'] %}
+          <div class="flow-node"><span>{{ loop.index }}</span><strong>{{ step }}</strong></div>
+        {% endfor %}
       </div>
     </section>
 
+    <section class="landing-section" id="pricing">
+      <div class="page-header">
+        <div>
+          <div class="eyebrow">Pricing</div>
+          <h2>Plans for teams scaling secure delivery.</h2>
+        </div>
+      </div>
+      <div class="pricing-grid">
+        {% for plan, price, detail in [('Developer','$29','Single workspace scanning'),('Team','$149','PR gates and AI fixes'),('Enterprise','Custom','RBAC, compliance, cloud posture')] %}
+          <article class="glass-panel pricing-card">
+            <h3>{{ plan }}</h3>
+            <strong>{{ price }}</strong>
+            <p>{{ detail }}</p>
+            <a class="btn btn--ghost" href="{{ url_for('auth.register') }}">Get Started</a>
+          </article>
+        {% endfor %}
+      </div>
+    </section>
+
+    <section class="landing-section">
+      <div class="testimonial-grid">
+        <article class="glass-panel testimonial-card">"SecureGPT gives our security engineers a live command center for every pull request." <span>- VP Engineering, fintech platform</span></article>
+        <article class="glass-panel testimonial-card">"The AI remediation workflow turned critical findings into reviewed patches before release." <span>- Head of AppSec, SaaS enterprise</span></article>
+      </div>
+    </section>
+
+    <footer class="landing-footer">
+      <span>SecureGPT AI DevSecOps Platform</span>
+      <span>Detect. Predict. Remediate. Deploy with confidence.</span>
+    </footer>
   </main>
-
-  <!-- Fix Modal -->
-  <div class="modal-overlay" id="fix-modal-overlay">
-    <div class="modal glass-card" id="fix-modal">
-      <div class="modal__header">
-        <h2 class="modal__title" id="fix-modal-title">AI Fix Suggestion</h2>
-        <button class="btn btn--ghost btn--icon" id="fix-modal-close">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-        </button>
-      </div>
-      <div class="modal__body" id="fix-modal-body">
-        <p class="placeholder-text">Loading fix…</p>
-      </div>
-    </div>
-  </div>
-
-  <script src="/static/app.js"></script>
 </body>
 </html>

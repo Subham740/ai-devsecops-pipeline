@@ -3,170 +3,533 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI DevSecOps Dashboard</title>
+    <title>SecureGPT Advanced AI DevSecOps Command Center</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    <div class="bg-grid"></div>
+<body class="securegpt-app">
+    <div class="matrix-field" aria-hidden="true"></div>
+    <div class="ambient-mesh" aria-hidden="true"></div>
 
-    <header class="header">
-        <div class="header__logo">
-            <div class="header__icon">
-                <i class="fa-solid fa-shield-halved"></i>
-            </div>
-            <div>
-                <div class="header__title">AI DevSecOps</div>
-                <div class="header__subtitle">Secure code review workspace</div>
-            </div>
-        </div>
+    <aside class="sg-sidebar" id="sidebar">
+        <a class="sg-brand" href="{{ url_for('dashboard.index') }}" aria-label="SecureGPT dashboard">
+            <span class="sg-brand__mark"><i class="fa-solid fa-shield-halved"></i></span>
+            <span>
+                <strong>SecureGPT</strong>
+                <small>Advanced DevSecOps</small>
+            </span>
+        </a>
 
-        <nav class="header__nav">
-            <button type="button" class="nav-btn active" id="nav-dashboard" data-panel="dashboard">
-                <i class="fa-solid fa-chart-column"></i>
-                <span>Overview</span>
-            </button>
-            <button type="button" class="nav-btn" id="nav-scanner" data-panel="scanner">
-                <i class="fa-solid fa-code"></i>
-                <span>Scanner</span>
-            </button>
-            <button type="button" class="nav-btn" id="nav-history" data-panel="history">
-                <i class="fa-solid fa-clock-rotate-left"></i>
-                <span>History</span>
-            </button>
-            <button type="button" class="nav-btn" id="nav-rules" data-panel="rules">
-                <i class="fa-solid fa-book"></i>
-                <span>Rules</span>
-            </button>
+        <nav class="sg-nav" aria-label="Primary">
+            <button type="button" class="nav-btn active" data-panel="dashboard"><i class="fa-solid fa-table-cells-large"></i><span>Dashboard</span></button>
+            <button type="button" class="nav-btn" data-panel="scanner"><i class="fa-solid fa-code"></i><span>Scan Center</span></button>
+            <button type="button" class="nav-btn" data-panel="remediation"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI Remediation</span></button>
+            <button type="button" class="nav-btn" data-panel="github"><i class="fa-brands fa-github"></i><span>GitHub Integration</span></button>
+            <button type="button" class="nav-btn" data-panel="cicd"><i class="fa-solid fa-diagram-project"></i><span>CI/CD Monitoring</span></button>
+            <button type="button" class="nav-btn" data-panel="analytics"><i class="fa-solid fa-chart-line"></i><span>Analytics</span></button>
+            <button type="button" class="nav-btn" data-panel="threat"><i class="fa-solid fa-satellite-dish"></i><span>Threat Intel</span></button>
+            <button type="button" class="nav-btn" data-panel="team"><i class="fa-solid fa-users-gear"></i><span>Team Management</span></button>
+            <button type="button" class="nav-btn" data-panel="reports"><i class="fa-solid fa-file-shield"></i><span>Reports</span></button>
+            <button type="button" class="nav-btn" data-panel="history"><i class="fa-solid fa-clock-rotate-left"></i><span>Scan History</span></button>
+            <button type="button" class="nav-btn" data-panel="rules"><i class="fa-solid fa-list-check"></i><span>Rules Catalog</span></button>
+            <button type="button" class="nav-btn" data-panel="notifications"><i class="fa-solid fa-bell"></i><span>Notifications</span></button>
+            <button type="button" class="nav-btn" data-panel="compliance"><i class="fa-solid fa-scale-balanced"></i><span>Compliance</span></button>
+            <button type="button" class="nav-btn" data-panel="settings"><i class="fa-solid fa-sliders"></i><span>Settings</span></button>
         </nav>
 
-        <div class="header__meta">
-            <div class="header-pill" id="health-indicator">
-                <span class="status-dot"></span>
-                <span class="status-text">Checking status</span>
+        <div class="sg-sidebar__footer">
+            <div class="sidebar-status">
+                <span><i class="fa-solid fa-circle"></i> Engine online</span>
+                <span>Policy v2.4</span>
             </div>
-            <div class="header-pill">
-                <span class="header-pill__label">Backend</span>
-                <span class="header-pill__value" id="backend-label">Unknown</span>
+            <div class="mini-score">
+                <span>Security posture</span>
+                <strong id="sidebar-score">94%</strong>
             </div>
-            <div class="header-pill">
-                <span class="header-pill__label">AI</span>
-                <span class="header-pill__value" id="ai-label">Unavailable</span>
-            </div>
-            <div class="header-user">
-                <span class="header-user__name">{{ current_user.username }}</span>
-                <a href="{{ url_for('auth.logout') }}" class="header-user__logout">
-                    <i class="fa-solid fa-arrow-right-from-bracket"></i>
-                    <span>Logout</span>
-                </a>
-            </div>
+            <div class="mini-meter"><span style="width: 94%"></span></div>
         </div>
-    </header>
+    </aside>
 
-    <main class="main">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-            {% if messages %}
-                <section class="flash-stack">
-                    {% for category, message in messages %}
-                        <div class="flash-message {{ category }}">{{ message }}</div>
-                    {% endfor %}
-                </section>
-            {% endif %}
-        {% endwith %}
-
-        <section class="panel active" id="panel-dashboard">
-            <div class="panel__header">
-                <h1>Security Overview</h1>
-                <p class="panel__subtitle">Live metrics, stored findings, and the latest scans from your workspace.</p>
+    <div class="sg-shell">
+        <header class="sg-topbar">
+            <div class="sg-topbar__left">
+                <button class="icon-button mobile-menu" id="mobile-menu" type="button" aria-label="Open navigation">
+                    <i class="fa-solid fa-bars"></i>
+                </button>
+                <div>
+                    <div class="eyebrow">Advanced Autonomous Security Command Center</div>
+                    <h1>SecureGPT AI DevSecOps Console</h1>
+                </div>
             </div>
 
-            <div class="metrics-grid">
-                <article class="metric-card metric-card--scans">
-                    <div class="metric-card__icon"><i class="fa-solid fa-magnifying-glass"></i></div>
-                    <div class="metric-card__value" id="metric-total-scans">{{ dashboard_metrics.total_scans }}</div>
-                    <div class="metric-card__label">Total scans</div>
-                </article>
-                <article class="metric-card metric-card--findings">
-                    <div class="metric-card__icon"><i class="fa-solid fa-bug"></i></div>
-                    <div class="metric-card__value" id="metric-total-findings">{{ dashboard_metrics.total_findings }}</div>
-                    <div class="metric-card__label">Findings detected</div>
-                </article>
-                <article class="metric-card metric-card--passed">
-                    <div class="metric-card__icon"><i class="fa-solid fa-circle-check"></i></div>
-                    <div class="metric-card__value" id="metric-passed">{{ dashboard_metrics.passed_scans }}</div>
-                    <div class="metric-card__label">Passed scans</div>
-                </article>
-                <article class="metric-card metric-card--attention">
-                    <div class="metric-card__icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
-                    <div class="metric-card__value" id="metric-attention">{{ dashboard_metrics.needs_attention_scans }}</div>
-                    <div class="metric-card__label">Need attention</div>
-                </article>
-                <article class="metric-card metric-card--findings">
-                    <div class="metric-card__icon"><i class="fa-solid fa-gauge-high"></i></div>
-                    <div class="metric-card__value" id="metric-risk-score">{{ dashboard_metrics.risk_score }}</div>
-                    <div class="metric-card__label">Risk score</div>
-                </article>
-                <article class="metric-card metric-card--attention">
-                    <div class="metric-card__icon"><i class="fa-solid fa-fire-flame-curved"></i></div>
-                    <div class="metric-card__value" id="metric-max-cvss">{{ dashboard_metrics.max_cvss }}</div>
-                    <div class="metric-card__label">Max CVSS</div>
-                </article>
+            <div class="command-search">
+                <i class="fa-solid fa-magnifying-glass"></i>
+                <input type="search" id="command-search-input" placeholder="Jump to scanner, history, rules, CVEs, pipelines">
+                <kbd>Ctrl K</kbd>
             </div>
 
-            <div class="overview-grid">
-                <article class="glass-card" id="rule-chart-card">
-                    <div class="glass-card__header">
-                        <div>
-                            <h2 class="glass-card__title"><i class="fa-solid fa-chart-bar"></i> Rule Activity</h2>
-                            <p class="glass-card__subtitle">Stored findings grouped by rule.</p>
+            <div class="sg-topbar__right">
+                <div class="threat-counter"><span class="pulse-dot"></span><strong id="live-threat-count">128</strong><span>live threats</span></div>
+                <button class="icon-button" type="button" data-panel-shortcut="notifications" aria-label="Notifications">
+                    <i class="fa-regular fa-bell"></i>
+                    <span class="notif-dot"></span>
+                </button>
+                <div class="user-chip">
+                    <span class="user-chip__avatar">{{ current_user.username[:1]|upper }}</span>
+                    <span>{{ current_user.username }}</span>
+                    <a href="{{ url_for('auth.logout') }}" title="Logout"><i class="fa-solid fa-arrow-right-from-bracket"></i></a>
+                </div>
+            </div>
+        </header>
+
+        <main class="sg-main">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    <section class="flash-stack">
+                        {% for category, message in messages %}
+                            <div class="flash-message {{ category }}">{{ message }}</div>
+                        {% endfor %}
+                    </section>
+                {% endif %}
+            {% endwith %}
+
+            <section class="panel active" id="panel-dashboard">
+                <div class="hero-dashboard glass-panel">
+                    <div>
+                        <div class="eyebrow">Advanced AI DevSecOps Command Layer</div>
+                        <h2>Prioritize risk, block unsafe releases, and generate secure fixes from one control plane.</h2>
+                        <p>SecureGPT unifies code scanning, rule intelligence, remediation workflow, compliance posture, and release gates into a focused developer security console.</p>
+                        <div class="hero-status-grid">
+                            <span><i class="fa-solid fa-shield-halved"></i> Policy gate active</span>
+                            <span><i class="fa-solid fa-brain"></i> AI remediation ready</span>
+                            <span><i class="fa-solid fa-database"></i> Scan history synced</span>
                         </div>
-                        <button type="button" class="btn btn--ghost btn--sm" onclick="switchPanel('rules')">
-                            <i class="fa-solid fa-arrow-up-right-from-square"></i>
-                            <span>Open Rules</span>
-                        </button>
+                        <div class="hero-actions">
+                            <button type="button" class="btn btn--primary" onclick="switchPanel('scanner')"><i class="fa-solid fa-play"></i><span>Run Live Scan</span></button>
+                            <button type="button" class="btn btn--ghost" onclick="switchPanel('remediation')"><i class="fa-solid fa-code-compare"></i><span>Review AI Fixes</span></button>
+                        </div>
                     </div>
-                    <div id="rule-bars" class="rule-bars">
-                        {% if dashboard_metrics.rule_breakdown %}
-                            {% for rule_id, count in dashboard_metrics.rule_breakdown.items() %}
-                                <div class="rule-bar-row">
-                                    <div class="rule-bar-label">{{ rule_id }}</div>
-                                    <div class="rule-bar-track">
-                                        <div class="rule-bar-fill" style="width: {{ count * 100 / dashboard_metrics.total_findings if dashboard_metrics.total_findings else 0 }}%"></div>
-                                    </div>
-                                    <div class="rule-bar-value">{{ count }}</div>
+                    <div class="security-score-ring" aria-label="Security score">
+                        <svg viewBox="0 0 120 120">
+                            <circle cx="60" cy="60" r="50"></circle>
+                            <circle cx="60" cy="60" r="50" class="score-progress"></circle>
+                        </svg>
+                        <div><strong id="security-score">94</strong><span>Posture Score</span></div>
+                    </div>
+                </div>
+
+                <div class="metrics-grid">
+                    <article class="metric-card metric-card--cyan">
+                        <i class="fa-solid fa-radar"></i>
+                        <strong id="metric-total-scans">{{ dashboard_metrics.total_scans }}</strong>
+                        <span>Total scans</span>
+                        <small>Stored security runs</small>
+                    </article>
+                    <article class="metric-card metric-card--red">
+                        <i class="fa-solid fa-bug"></i>
+                        <strong id="metric-total-findings">{{ dashboard_metrics.total_findings }}</strong>
+                        <span>Findings detected</span>
+                        <small>Mapped to rules and CWE</small>
+                    </article>
+                    <article class="metric-card metric-card--green">
+                        <i class="fa-solid fa-circle-check"></i>
+                        <strong id="metric-passed">{{ dashboard_metrics.passed_scans }}</strong>
+                        <span>Passed scans</span>
+                        <small>Clean release candidates</small>
+                    </article>
+                    <article class="metric-card metric-card--amber">
+                        <i class="fa-solid fa-triangle-exclamation"></i>
+                        <strong id="metric-attention">{{ dashboard_metrics.needs_attention_scans }}</strong>
+                        <span>Need attention</span>
+                        <small>Developer action required</small>
+                    </article>
+                    <article class="metric-card metric-card--purple">
+                        <i class="fa-solid fa-gauge-high"></i>
+                        <strong id="metric-risk-score">{{ dashboard_metrics.risk_score }}</strong>
+                        <span>Risk score</span>
+                        <small>Release gate input</small>
+                    </article>
+                    <article class="metric-card metric-card--red">
+                        <i class="fa-solid fa-fire-flame-curved"></i>
+                        <strong id="metric-max-cvss">{{ dashboard_metrics.max_cvss }}</strong>
+                        <span>Max CVSS</span>
+                        <small>Highest active severity</small>
+                    </article>
+                </div>
+
+                <div class="dashboard-grid">
+                    <article class="glass-panel span-7">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Secure Delivery Workflow</h3>
+                                <p>Developer change to monitored deployment with approval gates.</p>
+                            </div>
+                            <span class="status-pill status-pill--online"><i class="fa-solid fa-circle"></i> live</span>
+                        </div>
+                        <div class="architecture-flow">
+                            {% for step in ['Developer','IDE','GitHub','CI/CD','AI Scanner','Vulnerability Detection','AI Auto Fix','Approval','Docker/Kubernetes','Deployment','Monitoring','Grafana'] %}
+                                <div class="flow-node">
+                                    <span>{{ loop.index }}</span>
+                                    <strong>{{ step }}</strong>
                                 </div>
                             {% endfor %}
-                        {% else %}
-                            <p class="placeholder-text">No findings registered yet.</p>
-                        {% endif %}
+                        </div>
+                    </article>
+
+                    <article class="glass-panel span-5">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Risk Operations Queue</h3>
+                                <p>What needs attention before the next release.</p>
+                            </div>
+                        </div>
+                        <div class="risk-queue">
+                            <div class="risk-queue__item risk-queue__item--critical">
+                                <span><i class="fa-solid fa-fire-flame-curved"></i></span>
+                                <div><strong>Critical findings</strong><small>Block deploy until reviewed</small></div>
+                                <em>{{ dashboard_metrics.needs_attention_scans }}</em>
+                            </div>
+                            <div class="risk-queue__item">
+                                <span><i class="fa-solid fa-wand-magic-sparkles"></i></span>
+                                <div><strong>AI fix candidates</strong><small>Generate patch guidance from findings</small></div>
+                                <em>{{ dashboard_metrics.total_findings }}</em>
+                            </div>
+                            <div class="risk-queue__item risk-queue__item--healthy">
+                                <span><i class="fa-solid fa-circle-check"></i></span>
+                                <div><strong>Clean scans</strong><small>Ready to promote</small></div>
+                                <em>{{ dashboard_metrics.passed_scans }}</em>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="glass-panel span-4">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Rule Activity</h3>
+                                <p>Stored findings grouped by rule.</p>
+                            </div>
+                        </div>
+                        <div id="rule-bars" class="rule-bars">
+                            {% if dashboard_metrics.rule_breakdown %}
+                                {% for rule_id, count in dashboard_metrics.rule_breakdown.items() %}
+                                    <div class="rule-bar-row">
+                                        <div class="rule-bar-label">{{ rule_id }}</div>
+                                        <div class="rule-bar-track"><div class="rule-bar-fill" style="width: {{ count * 100 / dashboard_metrics.total_findings if dashboard_metrics.total_findings else 0 }}%"></div></div>
+                                        <div class="rule-bar-value">{{ count }}</div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <p class="placeholder-text">No findings registered yet.</p>
+                            {% endif %}
+                        </div>
+                    </article>
+
+                    <article class="glass-panel span-4">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Recent Scans</h3>
+                                <p>Click any stored scan to inspect findings.</p>
+                            </div>
+                            <button type="button" class="btn btn--ghost btn--sm" onclick="switchPanel('scanner')">New Scan</button>
+                        </div>
+                        <div class="scan-list" id="recent-scans-list">
+                            {% if recent_scans %}
+                                {% for scan in recent_scans %}
+                                    <button type="button" class="scan-item" data-scan-id="{{ scan.id }}">
+                                        <span><strong>{{ scan.target_name }}</strong><small>{{ scan.display_timestamp }} | {{ scan.finding_count }} finding(s)</small></span>
+                                        <em class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</em>
+                                    </button>
+                                {% endfor %}
+                            {% else %}
+                                <p class="placeholder-text">No scans recorded yet.</p>
+                            {% endif %}
+                        </div>
+                    </article>
+
+                    <article class="glass-panel span-4">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Gate Telemetry</h3>
+                                <p>Scanner and release-control stream.</p>
+                            </div>
+                        </div>
+                        <div class="terminal-window compact-terminal">
+                            <div>> semgrep --config auto --json src/</div>
+                            <div>> trivy fs --severity CRITICAL,HIGH .</div>
+                            <div>> entropy detector: scanning 11,842 tokens</div>
+                            <div class="terminal-warning">> gate: blocking deploy on critical findings</div>
+                            <div class="terminal-ok">> ai-fix: patch candidate generated</div>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-scanner">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Real-Time Vulnerability Scanner</div>
+                        <h2>Interactive Scanner</h2>
+                        <p>Live code scanning, AST visualization, OWASP mapping, dependency checks, and terminal-style logs.</p>
+                    </div>
+                    <button type="button" class="btn btn--primary" id="btn-load-example"><i class="fa-solid fa-flask"></i><span>Load Vulnerable Example</span></button>
+                </div>
+
+                <div class="scanner-layout">
+                    <article class="glass-panel scanner-input-card">
+                        <div class="scanner-toolbar">
+                            <div>
+                                <strong>Repository & File Scanner</strong>
+                                <small>Python, JavaScript, Java, Go, C++, Dockerfiles, Kubernetes YAML, Bash</small>
+                            </div>
+                            <button type="button" class="btn btn--ghost btn--sm" id="btn-clear-code"><i class="fa-solid fa-eraser"></i><span>Clear</span></button>
+                        </div>
+                        <div class="drop-zone">
+                            <i class="fa-solid fa-cloud-arrow-up"></i>
+                            <span>Drag-and-drop ZIP repository or connect Git URL</span>
+                        </div>
+                        <label class="field-group">
+                            <span>File Name</span>
+                            <input type="text" class="form-input" id="filename-input" value="dashboard_input.py" maxlength="100">
+                        </label>
+                        <label class="field-group">
+                            <span>Code Editor</span>
+                            <textarea class="code-editor" id="code-input" spellcheck="false" placeholder="Paste code here for AI-augmented security analysis."></textarea>
+                        </label>
+                        <button type="button" class="btn btn--primary btn--lg" id="btn-scan"><i class="fa-solid fa-shield-virus"></i><span>Scan for Vulnerabilities</span></button>
+                    </article>
+
+                    <article class="glass-panel scanner-results-card">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Scan Results</h3>
+                                <p>Severity, line number, vulnerable code, explanation, and affected file.</p>
+                            </div>
+                        </div>
+                        <div id="scan-results">
+                            <div class="empty-state">
+                                <i class="fa-solid fa-shield-heart"></i>
+                                <p>Run a scan to see findings, severities, and AI-assisted remediation options.</p>
+                            </div>
+                        </div>
+                    </article>
+
+                    <article class="glass-panel">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>AST-Based Visualization</h3>
+                                <p>Source-to-sink trace for risky execution paths.</p>
+                            </div>
+                        </div>
+                        <div class="ast-graph">
+                            <span>request.args</span>
+                            <i></i>
+                            <span>query builder</span>
+                            <i></i>
+                            <span class="danger-node">cursor.execute</span>
+                            <i></i>
+                            <span>database sink</span>
+                        </div>
+                    </article>
+
+                    <article class="glass-panel">
+                        <div class="panel-heading">
+                            <div>
+                                <h3>Folder Heatmap</h3>
+                                <p>Risk concentration across project paths.</p>
+                            </div>
+                        </div>
+                        <div class="heatmap-grid">
+                            {% for item in ['api','auth','billing','infra','k8s','workers','ui','tests','docker','scripts','models','secrets'] %}
+                                <span class="heat-cell heat-cell--{{ loop.index % 4 }}">{{ item }}</span>
+                            {% endfor %}
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-remediation">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">AI Auto-Fix Engine</div>
+                        <h2>Secure Patch Approval Workflow</h2>
+                        <p>AI-generated secure code patches, before/after diffs, confidence scoring, and approval gates.</p>
+                    </div>
+                    <button type="button" class="btn btn--primary" id="btn-approve-fix"><i class="fa-solid fa-check-double"></i><span>Approve Secure Fix</span></button>
+                </div>
+                <div class="remediation-grid">
+                    <article class="glass-panel code-diff">
+                        <div class="diff-column diff-column--before">
+                            <h3>Before</h3>
+                            <pre><code>- query = f"SELECT * FROM users WHERE id = {user_id}"
+- cursor.execute(query)
+- subprocess.run(user_cmd, shell=True)</code></pre>
+                        </div>
+                        <div class="diff-column diff-column--after">
+                            <h3>After</h3>
+                            <pre><code>+ query = "SELECT * FROM users WHERE id = ?"
++ cursor.execute(query, (user_id,))
++ subprocess.run(["/usr/bin/app", safe_arg], check=True)</code></pre>
+                        </div>
+                    </article>
+                    <article class="glass-panel ai-confidence-card">
+                        <h3>AI Confidence Meter</h3>
+                        <div class="confidence-ring"><strong>97%</strong><span>secure patch confidence</span></div>
+                        <ul class="signal-list">
+                            <li><i class="fa-solid fa-check"></i> OWASP A03 injection neutralized</li>
+                            <li><i class="fa-solid fa-check"></i> Unit test patch generated</li>
+                            <li><i class="fa-solid fa-check"></i> Reviewer approval requested</li>
+                            <li><i class="fa-solid fa-triangle-exclamation"></i> Validate command allowlist in staging</li>
+                        </ul>
+                    </article>
+                    <article class="glass-panel span-12">
+                        <div class="approval-timeline">
+                            {% for step in ['Finding explained','Patch generated','Tests synthesized','Security reviewer','Developer approval','CI gate passed','Merged to PR'] %}
+                                <span class="approval-step {% if loop.index < 5 %}done{% endif %}">{{ step }}</span>
+                            {% endfor %}
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-github">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">GitHub Integration</div>
+                        <h2>Repositories, Pull Requests, Webhooks, and Security Comments</h2>
+                    </div>
+                    <button type="button" class="btn btn--primary" id="btn-connect-github"><i class="fa-brands fa-github"></i><span>Connect GitHub</span></button>
+                </div>
+                <div class="integration-grid">
+                    {% for repo, score, risk in [('securegpt/api-gateway','98','healthy'),('securegpt/payment-service','71','critical PR blocked'),('securegpt/infra-live','86','k8s drift'),('securegpt/web-console','92','2 medium findings')] %}
+                        <article class="glass-panel repo-card action-card" role="button" tabindex="0" data-action="repo" data-title="{{ repo }}" data-detail="{{ risk }}" data-score="{{ score }}">
+                            <div><i class="fa-brands fa-github"></i><strong>{{ repo }}</strong><small>{{ risk }}</small></div>
+                            <span class="repo-score">{{ score }}</span>
+                        </article>
+                    {% endfor %}
+                </div>
+                <article class="glass-panel">
+                    <div class="pipeline-strip">
+                        <span>Webhook received</span><span>Commit analyzed</span><span>PR annotated</span><span>Actions gate</span><span>Reviewer notified</span>
                     </div>
                 </article>
+            </section>
 
-                <article class="glass-card">
-                    <div class="glass-card__header">
-                        <div>
-                            <h2 class="glass-card__title"><i class="fa-solid fa-clock-rotate-left"></i> Recent Scans</h2>
-                            <p class="glass-card__subtitle">Click any stored scan to inspect findings.</p>
-                        </div>
-                        <button type="button" class="btn btn--ghost btn--sm" onclick="switchPanel('scanner')">
-                            <i class="fa-solid fa-wand-magic-sparkles"></i>
-                            <span>New Scan</span>
-                        </button>
+            <section class="panel" id="panel-cicd">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">CI/CD Security Pipeline</div>
+                        <h2>Build Gates Across Jenkins, GitHub Actions, and GitLab CI</h2>
                     </div>
-                    <div class="scan-list" id="recent-scans-list">
+                    <span class="status-pill status-pill--blocked"><i class="fa-solid fa-ban"></i> critical gate active</span>
+                </div>
+                <div class="pipeline-board">
+                    {% for stage, tool, state in [('Checkout','GitHub','done'),('SAST','Semgrep','done'),('Dependencies','Safety/Snyk','warn'),('Secrets','Entropy Engine','done'),('Container','Trivy','warn'),('DAST','OWASP ZAP','running'),('Deploy','Kubernetes','blocked')] %}
+                        <article class="pipeline-stage pipeline-stage--{{ state }} action-card" role="button" tabindex="0" data-action="pipeline" data-title="{{ stage }}" data-detail="{{ tool }}" data-state="{{ state }}">
+                            <i class="fa-solid fa-circle-nodes"></i>
+                            <strong>{{ stage }}</strong>
+                            <span>{{ tool }}</span>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="panel" id="panel-analytics">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Advanced Security Analytics</div>
+                        <h2>Trends, Risk Forecasting, KPIs, and Developer Ownership</h2>
+                    </div>
+                </div>
+                <div class="analytics-grid">
+                    <article class="glass-panel chart-card span-8"><h3>Vulnerability Trend</h3><div class="line-chart"><span></span><span></span><span></span><span></span><span></span><span></span><span></span></div></article>
+                    <article class="glass-panel span-4"><h3>AI Threat Prediction</h3><div class="prediction-stack"><b>auth/session.py</b><meter min="0" max="100" value="82"></meter><b>k8s/ingress.yaml</b><meter min="0" max="100" value="67"></meter><b>billing/webhook.js</b><meter min="0" max="100" value="53"></meter></div></article>
+                    <article class="glass-panel span-6"><h3>Developer-wise Issue Tracking</h3><div class="owner-list"><span>Asha | 12 fixed</span><span>Ravi | 8 open</span><span>Meera | 21 fixed</span><span>Chen | 3 critical</span></div></article>
+                    <article class="glass-panel span-6"><h3>Dependency Health</h3><div class="package-list"><span>fastapi 0.115 | upgrade available</span><span>lodash 4.17 | CVE watch</span><span>openssl base image | critical patch</span></div></article>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-threat">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Threat Intelligence Assistant</div>
+                        <h2>Exploit Context, AI Security Chat, and Forecasting</h2>
+                    </div>
+                </div>
+                <div class="threat-grid">
+                    <article class="glass-panel chat-panel">
+                        <div class="terminal-window" id="threat-chat-log">
+                            <div><strong>user:</strong> How to fix SQL Injection?</div>
+                            <div><strong>securegpt:</strong> Use parameterized queries, validate identifiers, and add regression tests for malicious payloads.</div>
+                            <div><strong>user:</strong> Why is eval dangerous?</div>
+                            <div><strong>securegpt:</strong> It executes attacker-controlled code in-process and can expose secrets, files, and runtime credentials.</div>
+                        </div>
+                        <div class="chat-input"><input id="threat-chat-input" placeholder="Ask SecureGPT about CVEs, code, or best practices"><button type="button" id="threat-chat-send" aria-label="Send SecureGPT question"><i class="fa-solid fa-paper-plane"></i></button></div>
+                    </article>
+                    <article class="glass-panel feed-panel">
+                        <h3>Threat Intelligence Feed</h3>
+                        <ul class="feed-list">
+                            <li><span class="severity critical">Critical</span> Active exploit campaign targeting exposed Redis</li>
+                            <li><span class="severity high">High</span> Container escape PoC mapped to base image</li>
+                            <li><span class="severity medium">Medium</span> New OpenAI key leak pattern detected</li>
+                        </ul>
+                    </article>
+                </div>
+            </section>
+
+            <section class="panel" id="panel-team">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Role-Based Access Control</div>
+                        <h2>Team Management, Permissions, and Activity Logs</h2>
+                    </div>
+                </div>
+                <div class="team-grid">
+                    {% for role, detail in [('Admin','Full platform control'),('Security Engineer','Approve fixes and policies'),('Developer','Scan and remediate owned repos'),('Viewer','Read-only posture access')] %}
+                        <article class="glass-panel role-card action-card" role="button" tabindex="0" data-action="role" data-title="{{ role }}" data-detail="{{ detail }}"><i class="fa-solid fa-user-lock"></i><strong>{{ role }}</strong><span>{{ detail }}</span></article>
+                    {% endfor %}
+                </div>
+                <article class="glass-panel activity-log">
+                    <span>10:42 | admin approved critical SQLi patch</span>
+                    <span>10:39 | developer requested exception for staging deploy</span>
+                    <span>10:21 | security engineer updated OWASP policy pack</span>
+                </article>
+            </section>
+
+            <section class="panel" id="panel-reports">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Compliance & Reporting</div>
+                        <h2>PDF, Excel, Audit Logs, and Executive Summaries</h2>
+                    </div>
+                    <button type="button" class="btn btn--primary" id="btn-export-summary"><i class="fa-solid fa-file-export"></i><span>Export Report</span></button>
+                </div>
+                <div class="reports-grid">
+                    {% for report in ['Executive Risk Summary','OWASP Top 10 Evidence','SOC2 Audit Packet','Dependency CVE Register','AI Remediation Log','Cloud Posture Report'] %}
+                        <article class="glass-panel report-card action-card" role="button" tabindex="0" data-action="report" data-title="{{ report }}" data-detail="Ready for export"><i class="fa-regular fa-file-lines"></i><strong>{{ report }}</strong><span>Ready for export</span></article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="panel" id="panel-history">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Persistent Scan Intelligence</div>
+                        <h2>Scan History</h2>
+                        <p>Review stored scans, compare finding counts, and open any result for remediation details.</p>
+                    </div>
+                    <button type="button" class="btn btn--primary" id="btn-refresh-history"><i class="fa-solid fa-rotate"></i><span>Refresh History</span></button>
+                </div>
+                <article class="glass-panel">
+                    <div class="history-toolbar">
+                        <span><i class="fa-solid fa-database"></i> Connected to stored scan records</span>
+                        <span><i class="fa-solid fa-lock"></i> User-scoped session</span>
+                    </div>
+                    <div class="scan-list scan-list--history" id="history-list">
                         {% if recent_scans %}
                             {% for scan in recent_scans %}
                                 <button type="button" class="scan-item" data-scan-id="{{ scan.id }}">
-                                    <div class="scan-item__info">
-                                        <div class="scan-item__target">{{ scan.target_name }}</div>
-                                        <div class="scan-item__meta">
-                                            <span>{{ scan.display_timestamp }}</span>
-                                            <span>{{ scan.finding_count }} finding(s)</span>
-                                        </div>
-                                    </div>
-                                    <div class="scan-item__stats">
-                                        <span class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</span>
-                                    </div>
+                                    <span><strong>{{ scan.target_name }}</strong><small>{{ scan.display_timestamp }} | {{ scan.finding_count }} finding(s)</small></span>
+                                    <em class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</em>
                                 </button>
                             {% endfor %}
                         {% else %}
@@ -174,152 +537,118 @@
                         {% endif %}
                     </div>
                 </article>
-            </div>
-        </section>
+            </section>
 
-        <section class="panel" id="panel-scanner">
-            <div class="panel__header">
-                <h1>Interactive Scanner</h1>
-                <p class="panel__subtitle">Paste a Python snippet, run a scan, inspect findings, and request Gemini-based remediation.</p>
-            </div>
-
-            <div class="scanner-layout">
-                <article class="glass-card">
-                    <div class="scanner-toolbar">
-                        <div class="scanner-toolbar__label">Scan Input</div>
-                        <div class="scanner-toolbar__actions">
-                            <button type="button" class="btn btn--ghost btn--sm" id="btn-clear-code">
-                                <i class="fa-solid fa-eraser"></i>
-                                <span>Clear</span>
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="form-grid">
-                        <label class="field-group">
-                            <span class="field-group__label">File Name</span>
-                            <input type="text" class="form-input" id="filename-input" value="dashboard_input.py" maxlength="100">
-                        </label>
-                        <label class="field-group">
-                            <span class="field-group__label">Python Code</span>
-                            <textarea class="code-editor" id="code-input" spellcheck="false" placeholder="Paste Python code here to scan for security issues."></textarea>
-                        </label>
-                    </div>
-
-                    <div class="scanner-actions">
-                        <button type="button" class="btn btn--primary btn--lg" id="btn-scan">
-                            <i class="fa-solid fa-shield-virus"></i>
-                            <span>Scan for Vulnerabilities</span>
-                        </button>
-                    </div>
-                </article>
-
-                <article class="glass-card">
-                    <div class="glass-card__header">
-                        <div>
-                            <h2 class="glass-card__title"><i class="fa-solid fa-list-check"></i> Scan Results</h2>
-                            <p class="glass-card__subtitle">Latest result from the scanner panel.</p>
-                        </div>
-                    </div>
-                    <div id="scan-results">
-                        <div class="empty-state">
-                            <i class="fa-solid fa-shield-heart"></i>
-                            <p>Run a scan to see findings, severities, and AI-assisted remediation options.</p>
-                        </div>
-                    </div>
-                </article>
-            </div>
-        </section>
-
-        <section class="panel" id="panel-history">
-            <div class="panel__header">
-                <h1>Stored Scan History</h1>
-                <p class="panel__subtitle">Every scan result is persisted. Click a record to inspect its findings.</p>
-            </div>
-
-            <article class="glass-card">
-                <div class="glass-card__header">
+            <section class="panel" id="panel-rules">
+                <div class="page-header">
                     <div>
-                        <h2 class="glass-card__title"><i class="fa-solid fa-database"></i> All Scans</h2>
-                        <p class="glass-card__subtitle">Most recent results across the current project.</p>
+                        <div class="eyebrow">Detection Policy Library</div>
+                        <h2>Rules Catalog</h2>
+                        <p>Security rules used by the scanner, including severity, CWE mapping, and recommended remediation.</p>
                     </div>
-                    <button type="button" class="btn btn--ghost btn--sm" id="btn-refresh-history">
-                        <i class="fa-solid fa-rotate"></i>
-                        <span>Refresh</span>
-                    </button>
+                    <button type="button" class="btn btn--ghost" onclick="switchPanel('scanner')"><i class="fa-solid fa-shield-virus"></i><span>Test Rules</span></button>
                 </div>
-                <div class="scan-list" id="history-list">
-                    {% if recent_scans %}
-                        {% for scan in recent_scans %}
-                            <button type="button" class="scan-item" data-scan-id="{{ scan.id }}">
-                                <div class="scan-item__info">
-                                    <div class="scan-item__target">{{ scan.target_name }}</div>
-                                    <div class="scan-item__meta">
-                                        <span>{{ scan.display_timestamp }}</span>
-                                        <span>{{ scan.finding_count }} finding(s)</span>
-                                    </div>
+                <div class="rules-grid" id="rules-grid">
+                    {% for rule in rules %}
+                        <article class="glass-panel rule-card">
+                            <div class="panel-heading">
+                                <div>
+                                    <h3>{{ rule.title }}</h3>
+                                    <p>{{ rule.id }} | {{ rule.cwe }}</p>
                                 </div>
-                                <div class="scan-item__stats">
-                                    <span class="badge badge--{{ scan.status }}">{{ scan.status.replace('_', ' ') }}</span>
-                                </div>
-                            </button>
-                        {% endfor %}
-                    {% else %}
-                        <p class="placeholder-text">No scans recorded yet.</p>
-                    {% endif %}
+                                <span class="badge badge--{{ rule.severity }}">{{ rule.severity }}</span>
+                            </div>
+                            <p>{{ rule.description }}</p>
+                            <p class="placeholder-text">{{ rule.recommendation }}</p>
+                        </article>
+                    {% endfor %}
                 </div>
-            </article>
-        </section>
+            </section>
 
-        <section class="panel" id="panel-rules">
-            <div class="panel__header">
-                <h1>Detection Rules</h1>
-                <p class="panel__subtitle">Rule catalog currently used by the application scanner. No placeholder entries are injected.</p>
-            </div>
+            <section class="panel" id="panel-notifications">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Notification & Alert Center</div>
+                        <h2>Slack, Discord, Microsoft Teams, Email, and Escalation</h2>
+                    </div>
+                </div>
+                <div class="alert-grid">
+                    {% for channel, icon in [('Slack','fa-brands fa-slack'),('Discord','fa-brands fa-discord'),('Microsoft Teams','fa-brands fa-microsoft'),('Email','fa-regular fa-envelope')] %}
+                        <article class="glass-panel alert-card action-card" role="button" tabindex="0" data-action="alert" data-title="{{ channel }}" data-detail="Notification channel enabled"><i class="{{ icon }}"></i><strong>{{ channel }}</strong><span class="toggle on"></span></article>
+                    {% endfor %}
+                </div>
+                <article class="critical-popup"><i class="fa-solid fa-triangle-exclamation"></i><span>Critical issue escalation: payment-service deployment blocked</span></article>
+            </section>
 
-            <div class="rules-grid" id="rules-grid">
-                {% for rule in rules %}
-                    <article class="glass-card rule-card">
-                        <div class="glass-card__header">
-                            <div style="font-weight: 700;">{{ rule.title }}</div>
-                            <span class="badge badge--{{ rule.severity }}">{{ rule.severity }}</span>
-                        </div>
-                        <div class="rule-card__id">{{ rule.id }} | {{ rule.cwe }}</div>
-                        <div class="rule-card__desc">{{ rule.description }}</div>
-                        <div class="rule-card__footer">{{ rule.recommendation }}</div>
-                    </article>
-                {% endfor %}
-            </div>
-        </section>
-    </main>
+            <section class="panel" id="panel-compliance">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Cloud Security Dashboard</div>
+                        <h2>AWS, Azure, Google Cloud, IAM, Containers, and Compliance</h2>
+                    </div>
+                </div>
+                <div class="cloud-grid">
+                    {% for cloud, risk in [('AWS','IAM wildcard policy'),('Azure','Public storage container'),('Google Cloud','Service account key age'),('Kubernetes','Privileged pod detected'),('Docker','Critical base image CVE'),('Prometheus','Metrics healthy')] %}
+                        <article class="glass-panel cloud-card action-card" role="button" tabindex="0" data-action="cloud" data-title="{{ cloud }}" data-detail="{{ risk }}"><i class="fa-solid fa-cloud"></i><strong>{{ cloud }}</strong><span>{{ risk }}</span></article>
+                    {% endfor %}
+                </div>
+            </section>
+
+            <section class="panel" id="panel-settings">
+                <div class="page-header">
+                    <div>
+                        <div class="eyebrow">Platform Settings</div>
+                        <h2>Tech Stack, Integrations, Models, and Policy Controls</h2>
+                    </div>
+                </div>
+                <div class="stack-grid">
+                    {% set groups = {
+                        'Frontend': ['React','Tailwind CSS','Framer Motion','Recharts'],
+                        'Backend': ['FastAPI','Redis','Celery','PostgreSQL','MongoDB'],
+                        'AI': ['Gemini API','OpenAI API','LangChain'],
+                        'Security': ['Semgrep','Trivy','OWASP ZAP'],
+                        'DevOps': ['Docker','Kubernetes','Jenkins','GitHub Actions'],
+                        'Monitoring': ['Grafana','Prometheus'],
+                        'Cloud': ['AWS','Azure','Google Cloud']
+                    } %}
+                    {% for title, items in groups.items() %}
+                        <article class="glass-panel stack-card action-card" role="button" tabindex="0" data-action="stack" data-title="{{ title }}" data-detail="{{ items|join(', ') }}">
+                            <h3>{{ title }}</h3>
+                            <div>{% for item in items %}<span>{{ item }}</span>{% endfor %}</div>
+                        </article>
+                    {% endfor %}
+                </div>
+            </section>
+        </main>
+    </div>
 
     <div class="modal-overlay" id="scan-modal-overlay">
-        <div class="modal glass-card">
+        <div class="modal glass-panel">
             <div class="modal__header">
-                <div class="modal__title">
-                    <i class="fa-solid fa-file-shield"></i>
-                    <span>Scan Details</span>
-                </div>
-                <button type="button" class="btn btn--ghost btn--icon" id="scan-modal-close">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div class="modal__title"><i class="fa-solid fa-file-shield"></i><span>Scan Details</span></div>
+                <button type="button" class="icon-button" id="scan-modal-close"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal__body" id="scan-modal-body"></div>
         </div>
     </div>
 
     <div class="modal-overlay" id="fix-modal-overlay">
-        <div class="modal glass-card">
+        <div class="modal glass-panel">
             <div class="modal__header">
-                <div class="modal__title">
-                    <i class="fa-solid fa-wand-magic-sparkles"></i>
-                    <span>AI Remediation</span>
-                </div>
-                <button type="button" class="btn btn--ghost btn--icon" id="fix-modal-close">
-                    <i class="fa-solid fa-xmark"></i>
-                </button>
+                <div class="modal__title"><i class="fa-solid fa-wand-magic-sparkles"></i><span>AI Remediation</span></div>
+                <button type="button" class="icon-button" id="fix-modal-close"><i class="fa-solid fa-xmark"></i></button>
             </div>
             <div class="modal__body" id="fix-modal-body"></div>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="action-modal-overlay">
+        <div class="modal glass-panel">
+            <div class="modal__header">
+                <div class="modal__title" id="action-modal-title"><i class="fa-solid fa-circle-info"></i><span>Option Details</span></div>
+                <button type="button" class="icon-button" id="action-modal-close" aria-label="Close option details"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+            <div class="modal__body" id="action-modal-body"></div>
         </div>
     </div>
 
