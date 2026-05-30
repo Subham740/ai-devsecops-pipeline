@@ -1,4 +1,5 @@
 from app import create_app
+from app.realtime import socketio
 import os
 
 app = create_app()
@@ -10,4 +11,7 @@ if __name__ == "__main__":
     debug = os.getenv("FLASK_DEBUG", "True").lower() in ("true", "1", "t")
 
     print(f"Starting Flask app on {host}:{port} (debug={debug})")
-    app.run(host=host, port=port, debug=debug)
+    if socketio:
+        socketio.run(app, host=host, port=port, debug=debug, allow_unsafe_werkzeug=True)
+    else:
+        app.run(host=host, port=port, debug=debug)

@@ -1,6 +1,7 @@
 from flask import Flask, Response, current_app, render_template
 from flask_login import LoginManager
 
+from app.realtime import socketio
 from app.storage import create_storage
 from config import config
 
@@ -18,6 +19,9 @@ def load_user(user_id):
 def create_app(test_config=None):
     app = Flask(__name__)
     app.config.from_object(config)
+    app.config.setdefault("MAX_CONTENT_LENGTH", 10 * 1024 * 1024)
+    app.config.setdefault("SESSION_COOKIE_HTTPONLY", True)
+    app.config.setdefault("SESSION_COOKIE_SAMESITE", "Lax")
 
     if test_config:
         app.config.update(test_config)
@@ -40,10 +44,12 @@ def create_app(test_config=None):
 
     with app.app_context():
         from app.auth.routes import auth_bp
+        from app.api.routes import api_bp
         from app.dashboard.routes import dashboard_bp
 
         app.register_blueprint(auth_bp)
         app.register_blueprint(dashboard_bp)
+        app.register_blueprint(api_bp)
 
         @app.route("/")
         def home():
@@ -105,5 +111,8 @@ def create_app(test_config=None):
                 password=app.config.get("DEMO_PASSWORD"),
                 password_hash=app.config.get("DEMO_PASSWORD_HASH"),
             )
+
+    if socketio:
+        socketio.init_app(app)
 
     return app

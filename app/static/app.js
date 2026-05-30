@@ -408,6 +408,29 @@ eval(user_cmd)
     if (threatChatInput) threatChatInput.value = "";
   }
 
+  async function classifyThreatQuestion(question) {
+    const value = String(question || "").trim();
+    if (!value) return;
+
+    answerThreatQuestion(value);
+    try {
+      const data = await fetchJson("/api/threats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: value }),
+      });
+      if (threatChatLog && data.classification) {
+        threatChatLog.insertAdjacentHTML(
+          "beforeend",
+          `<div><strong>threat intel:</strong> ${escapeHtml(data.classification.category)} | ${escapeHtml(data.classification.severity)} | ${escapeHtml(data.classification.guidance)}</div>`
+        );
+        threatChatLog.scrollTop = threatChatLog.scrollHeight;
+      }
+    } catch {
+      // The local answer above remains useful even when threat persistence is offline.
+    }
+  }
+
   function renderScanRows(scans, container, emptyMessage) {
     if (!container) return;
 
@@ -610,7 +633,7 @@ eval(user_cmd)
     fixModal.classList.add("active");
 
     try {
-      const data = await fetchJson("/fix", {
+      const data = await fetchJson("/api/remediation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -747,20 +770,21 @@ eval(user_cmd)
   }
 
   function exportSummaryReport() {
-    const summary = {
-      generated_at: new Date().toISOString(),
-      metrics: latestMetrics || {},
-      recent_scans: latestRecentScans || [],
-    };
-    const blob = new Blob([JSON.stringify(summary, null, 2)], { type: "application/json" });
-    const objectUrl = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = objectUrl;
-    link.download = "securegpt-security-summary.json";
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    URL.revokeObjectURL(objectUrl);
+    return fetch("/api/reports/json")
+      .then((response) => {
+        if (!response.ok) throw new Error("Report export failed.");
+        return response.blob();
+      })
+      .then((blob) => {
+        const objectUrl = URL.createObjectURL(blob);
+        const link = document.createElement("a");
+        link.href = objectUrl;
+        link.download = "securegpt-security-report.json";
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(objectUrl);
+      });
   }
 
   async function checkHealth() {
@@ -832,16 +856,51 @@ eval(user_cmd)
 
   exportSummaryButton?.addEventListener("click", async () => {
     if (!latestMetrics) await loadDashboard();
-    exportSummaryReport();
+    try {
+      await exportSummaryReport();
+    } catch (error) {
+      openActionModal({
+        icon: "fa-solid fa-file-export",
+        title: "Export Report",
+        status: "Report export failed",
+        detail: error.message,
+        items: ["Check backend health", "Try again"],
+      });
+    }
   });
 
   approveFixButton?.addEventListener("click", approveSecureFix);
-  connectGithubButton?.addEventListener("click", connectGithub);
-  threatChatSend?.addEventListener("click", () => answerThreatQuestion(threatChatInput?.value));
+  connectGithubButton?.addEventListener("click", async () => {
+    connectGithub();
+    try {
+      const data = await fetchJson("/api/github");
+      if ((data.repositories || []).length) {
+        openActionModal({
+          icon: "fa-brands fa-github",
+          title: "Connect GitHub",
+          status: "GitHub repositories synced",
+          detail: `${data.repositories.length} repositories loaded from GitHub.`,
+          items: data.repositories.slice(0, 5).map((repo) => repo.full_name),
+          options: optionsFromLabels(["Scan Pull Requests", "Webhook Events", "Branch Protection"], "fa-brands fa-github"),
+        });
+      }
+    } catch (error) {
+      openActionModal({
+        icon: "fa-brands fa-github",
+        title: "Connect GitHub",
+        status: "GitHub credentials needed",
+        detail: error.message,
+        items: ["Set GITHUB_TOKEN", "Restart backend", "Try connection again"],
+      });
+    }
+  });
+  threatChatSend?.addEventListener("click", async () => {
+    await classifyThreatQuestion(threatChatInput?.value);
+  });
   threatChatInput?.addEventListener("keydown", (event) => {
     if (event.key !== "Enter") return;
     event.preventDefault();
-    answerThreatQuestion(threatChatInput.value);
+    classifyThreatQuestion(threatChatInput.value);
   });
 
   scanButton?.addEventListener("click", async () => {
@@ -864,7 +923,7 @@ eval(user_cmd)
     scanButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i><span>Scanning...</span>';
 
     try {
-      const scan = await fetchJson("/scan", {
+      const scan = await fetchJson("/api/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ filename, code }),
@@ -952,6 +1011,24 @@ eval(user_cmd)
     const next = current + Math.floor(Math.random() * 5) - 2;
     threatCounter.textContent = String(Math.max(111, Math.min(149, next)));
   }, 2600);
+
+  if (window.io) {
+    const socket = window.io();
+    socket.on("new_vulnerability", (event) => {
+      if (threatCounter) threatCounter.textContent = String(Number(threatCounter.textContent || 0) + Number(event.finding_count || 1));
+      loadDashboard();
+      loadHistory();
+    });
+    socket.on("blocked_deployment", (event) => {
+      openActionModal({
+        icon: "fa-solid fa-ban",
+        title: "Deployment Blocked",
+        status: event.message || "Deployment blocked by policy",
+        detail: event.target_name || "Critical findings require review.",
+        items: ["Review critical findings", "Generate secure fix", "Rerun scan"],
+      });
+    });
+  }
 
   checkHealth();
   activatePassiveOptions();

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -9,11 +10,33 @@ from flask import current_app
 from flask_login import UserMixin
 from werkzeug.security import check_password_hash, generate_password_hash
 
-from app.models import Employee, ScanRecord, User, db
+from app.models import (
+    Employee,
+    GitHubRepository,
+    Notification,
+    Policy,
+    Report,
+    ScanRecord,
+    Threat,
+    User,
+    Vulnerability,
+    db,
+)
 
 
 def _utc_now() -> datetime:
     return datetime.now(UTC).replace(tzinfo=None)
+
+
+def _json_dumps(value: dict[str, Any]) -> str:
+    return json.dumps(value, default=str)
+
+
+def _json_loads(value: str) -> dict[str, Any]:
+    try:
+        return json.loads(value or "{}")
+    except json.JSONDecodeError:
+        return {}
 
 
 def _serialize_scan(
@@ -204,6 +227,53 @@ class SQLStorage:
         )
         record.set_findings(result.get("findings", []))
         db.session.add(record)
+        db.session.flush()
+
+        for finding in result.get("findings", []):
+            vulnerability = Vulnerability(
+                scan_id=record.id,
+                rule_id=finding.get("id", "UNKNOWN"),
+                title=finding.get("title") or finding.get("name") or finding.get("id", "Finding"),
+                severity=finding.get("severity", "medium"),
+                cwe=finding.get("cwe"),
+                cvss=float(finding.get("cvss", 0) or 0),
+                filename=finding.get("filename") or filename,
+                line=finding.get("line"),
+                message=finding.get("message"),
+                recommendation=finding.get("recommendation"),
+                excerpt=finding.get("excerpt"),
+            )
+            db.session.add(vulnerability)
+            if finding.get("severity") in {"critical", "high"}:
+                db.session.add(
+                    Threat(
+                        category=finding.get("title") or finding.get("id", "Finding"),
+                        severity=finding.get("severity", "medium"),
+                        title=f"{finding.get('severity', 'medium').title()} threat in {filename}",
+                        description=finding.get("message") or finding.get("description"),
+                    )
+                )
+
+        if result.get("findings"):
+            top_severity = self._highest_severity(result["findings"])
+            db.session.add(
+                Notification(
+                    event_type="new_vulnerability",
+                    severity=top_severity,
+                    title=f"{len(result['findings'])} finding(s) detected",
+                    message=f"{filename} has security findings requiring review.",
+                )
+            )
+        else:
+            db.session.add(
+                Notification(
+                    event_type="scan_passed",
+                    severity="info",
+                    title="Scan completed",
+                    message=f"{filename} passed security checks.",
+                )
+            )
+
         db.session.commit()
         return self._serialize_record(record)
 
@@ -229,6 +299,84 @@ class SQLStorage:
     def get_scan_chart_data(self, days: int = 7) -> dict[str, Any]:
         scans = self.list_recent_scans(limit=1000)
         return _build_chart_data(scans, days=days)
+
+    def list_notifications(self, limit: int = 50) -> list[dict[str, Any]]:
+        query = Notification.query.order_by(Notification.created_at.desc(), Notification.id.desc())
+        return [self._serialize_notification(item) for item in query.limit(limit).all()]
+
+    def create_notification(self, event_type: str, severity: str, title: str, message: str) -> dict[str, Any]:
+        notification = Notification(event_type=event_type, severity=severity, title=title, message=message)
+        db.session.add(notification)
+        db.session.commit()
+        return self._serialize_notification(notification)
+
+    def list_threats(self, limit: int = 50) -> list[dict[str, Any]]:
+        query = Threat.query.order_by(Threat.created_at.desc(), Threat.id.desc())
+        return [self._serialize_threat(item) for item in query.limit(limit).all()]
+
+    def create_threat(self, category: str, severity: str, title: str, description: str, source: str = "scanner") -> dict[str, Any]:
+        threat = Threat(category=category, severity=severity, source=source, title=title, description=description)
+        db.session.add(threat)
+        db.session.commit()
+        return self._serialize_threat(threat)
+
+    def list_policies(self) -> list[dict[str, Any]]:
+        if not Policy.query.first():
+            self.ensure_default_policies()
+        return [self._serialize_policy(item) for item in Policy.query.order_by(Policy.name.asc()).all()]
+
+    def ensure_default_policies(self) -> None:
+        defaults = [
+            ("Critical Release Gate", "Block deployments when critical findings are present.", True, 1),
+            ("High Finding Budget", "Block deployments when too many high findings remain open.", True, 3),
+            ("Secrets Protection", "Escalate hardcoded credentials immediately.", True, 1),
+        ]
+        for name, description, block_critical, high_count in defaults:
+            if not Policy.query.filter_by(name=name).first():
+                db.session.add(
+                    Policy(
+                        name=name,
+                        description=description,
+                        block_on_critical=block_critical,
+                        block_on_high_count=high_count,
+                    )
+                )
+        db.session.commit()
+
+    def evaluate_policy_gate(self, scan: dict[str, Any] | None = None) -> dict[str, Any]:
+        findings = scan.get("findings", []) if scan else [
+            finding
+            for stored_scan in self.list_recent_scans(limit=1000)
+            for finding in stored_scan.get("findings", [])
+        ]
+        critical = sum(1 for finding in findings if finding.get("severity") == "critical")
+        high = sum(1 for finding in findings if finding.get("severity") == "high")
+        blocked = critical > 0 or high >= 3
+        return {
+            "status": "blocked" if blocked else "passed",
+            "blocked": blocked,
+            "critical_findings": critical,
+            "high_findings": high,
+            "message": "Deployment blocked by policy gate." if blocked else "Deployment gate passed.",
+        }
+
+    def create_report_record(self, name: str, report_format: str, summary: dict[str, Any], file_path: str | None = None) -> dict[str, Any]:
+        report = Report(name=name, format=report_format, file_path=file_path, summary_json=_json_dumps(summary))
+        db.session.add(report)
+        db.session.commit()
+        return self._serialize_report(report)
+
+    def upsert_github_repo(self, repo: dict[str, Any]) -> dict[str, Any]:
+        record = GitHubRepository.query.filter_by(full_name=repo["full_name"]).first()
+        if not record:
+            record = GitHubRepository(full_name=repo["full_name"])
+            db.session.add(record)
+        record.default_branch = repo.get("default_branch")
+        record.private = bool(repo.get("private", False))
+        record.html_url = repo.get("html_url")
+        record.last_scan_status = repo.get("last_scan_status")
+        db.session.commit()
+        return self._serialize_github_repo(record)
 
     def ensure_demo_user(
         self,
@@ -264,6 +412,70 @@ class SQLStorage:
             findings=record.findings,
             created_at=record.created_at,
         )
+
+    @staticmethod
+    def _highest_severity(findings: list[dict[str, Any]]) -> str:
+        order = {"critical": 4, "high": 3, "medium": 2, "low": 1, "info": 0}
+        return max((finding.get("severity", "info") for finding in findings), key=lambda item: order.get(item, 0))
+
+    @staticmethod
+    def _serialize_notification(item: Notification) -> dict[str, Any]:
+        return {
+            "id": item.id,
+            "event_type": item.event_type,
+            "severity": item.severity,
+            "title": item.title,
+            "message": item.message,
+            "read": item.read,
+            "created_at": item.created_at.replace(microsecond=0).isoformat(),
+        }
+
+    @staticmethod
+    def _serialize_threat(item: Threat) -> dict[str, Any]:
+        return {
+            "id": item.id,
+            "category": item.category,
+            "severity": item.severity,
+            "source": item.source,
+            "title": item.title,
+            "description": item.description,
+            "created_at": item.created_at.replace(microsecond=0).isoformat(),
+        }
+
+    @staticmethod
+    def _serialize_policy(item: Policy) -> dict[str, Any]:
+        return {
+            "id": item.id,
+            "name": item.name,
+            "description": item.description,
+            "block_on_critical": item.block_on_critical,
+            "block_on_high_count": item.block_on_high_count,
+            "enabled": item.enabled,
+            "created_at": item.created_at.replace(microsecond=0).isoformat(),
+        }
+
+    @staticmethod
+    def _serialize_report(item: Report) -> dict[str, Any]:
+        return {
+            "id": item.id,
+            "name": item.name,
+            "format": item.format,
+            "file_path": item.file_path,
+            "summary": _json_loads(item.summary_json),
+            "created_at": item.created_at.replace(microsecond=0).isoformat(),
+        }
+
+    @staticmethod
+    def _serialize_github_repo(item: GitHubRepository) -> dict[str, Any]:
+        return {
+            "id": item.id,
+            "full_name": item.full_name,
+            "default_branch": item.default_branch,
+            "private": item.private,
+            "html_url": item.html_url,
+            "last_scan_status": item.last_scan_status,
+            "created_at": item.created_at.replace(microsecond=0).isoformat(),
+        }
 
 
 class MongoStorage:
@@ -372,6 +584,140 @@ class MongoStorage:
         scans = self.list_recent_scans(limit=1000)
         return _build_chart_data(scans, days=days)
 
+    def list_notifications(self, limit: int = 50) -> list[dict[str, Any]]:
+        if "notifications" not in self.database.list_collection_names():
+            return []
+        return [
+            self._serialize_simple_document(document)
+            for document in self.database["notifications"].find().sort("created_at", -1).limit(limit)
+        ]
+
+    def create_notification(self, event_type: str, severity: str, title: str, message: str) -> dict[str, Any]:
+        created_at = _utc_now()
+        inserted = self.database["notifications"].insert_one(
+            {
+                "event_type": event_type,
+                "severity": severity,
+                "title": title,
+                "message": message,
+                "read": False,
+                "created_at": created_at,
+            }
+        )
+        return {
+            "id": str(inserted.inserted_id),
+            "event_type": event_type,
+            "severity": severity,
+            "title": title,
+            "message": message,
+            "read": False,
+            "created_at": created_at.replace(microsecond=0).isoformat(),
+        }
+
+    def list_threats(self, limit: int = 50) -> list[dict[str, Any]]:
+        return [
+            self._serialize_simple_document(document)
+            for document in self.database["threats"].find().sort("created_at", -1).limit(limit)
+        ]
+
+    def create_threat(self, category: str, severity: str, title: str, description: str, source: str = "scanner") -> dict[str, Any]:
+        created_at = _utc_now()
+        inserted = self.database["threats"].insert_one(
+            {
+                "category": category,
+                "severity": severity,
+                "source": source,
+                "title": title,
+                "description": description,
+                "created_at": created_at,
+            }
+        )
+        return {
+            "id": str(inserted.inserted_id),
+            "category": category,
+            "severity": severity,
+            "source": source,
+            "title": title,
+            "description": description,
+            "created_at": created_at.replace(microsecond=0).isoformat(),
+        }
+
+    def list_policies(self) -> list[dict[str, Any]]:
+        policies = list(self.database["policies"].find().sort("name", 1))
+        if not policies:
+            self.ensure_default_policies()
+            policies = list(self.database["policies"].find().sort("name", 1))
+        return [self._serialize_simple_document(document) for document in policies]
+
+    def ensure_default_policies(self) -> None:
+        for name, description, block_critical, high_count in [
+            ("Critical Release Gate", "Block deployments when critical findings are present.", True, 1),
+            ("High Finding Budget", "Block deployments when too many high findings remain open.", True, 3),
+            ("Secrets Protection", "Escalate hardcoded credentials immediately.", True, 1),
+        ]:
+            self.database["policies"].update_one(
+                {"name": name},
+                {
+                    "$setOnInsert": {
+                        "name": name,
+                        "description": description,
+                        "block_on_critical": block_critical,
+                        "block_on_high_count": high_count,
+                        "enabled": True,
+                        "created_at": _utc_now(),
+                    }
+                },
+                upsert=True,
+            )
+
+    def evaluate_policy_gate(self, scan: dict[str, Any] | None = None) -> dict[str, Any]:
+        findings = scan.get("findings", []) if scan else [
+            finding
+            for stored_scan in self.list_recent_scans(limit=1000)
+            for finding in stored_scan.get("findings", [])
+        ]
+        critical = sum(1 for finding in findings if finding.get("severity") == "critical")
+        high = sum(1 for finding in findings if finding.get("severity") == "high")
+        blocked = critical > 0 or high >= 3
+        return {
+            "status": "blocked" if blocked else "passed",
+            "blocked": blocked,
+            "critical_findings": critical,
+            "high_findings": high,
+            "message": "Deployment blocked by policy gate." if blocked else "Deployment gate passed.",
+        }
+
+    def create_report_record(self, name: str, report_format: str, summary: dict[str, Any], file_path: str | None = None) -> dict[str, Any]:
+        created_at = _utc_now()
+        inserted = self.database["reports"].insert_one(
+            {
+                "name": name,
+                "format": report_format,
+                "file_path": file_path,
+                "summary": summary,
+                "created_at": created_at,
+            }
+        )
+        return {
+            "id": str(inserted.inserted_id),
+            "name": name,
+            "format": report_format,
+            "file_path": file_path,
+            "summary": summary,
+            "created_at": created_at.replace(microsecond=0).isoformat(),
+        }
+
+    def upsert_github_repo(self, repo: dict[str, Any]) -> dict[str, Any]:
+        repo = dict(repo)
+        repo["created_at"] = repo.get("created_at") or _utc_now()
+        self.database["github_repositories"].update_one(
+            {"full_name": repo["full_name"]},
+            {"$set": repo},
+            upsert=True,
+        )
+        document = self.database["github_repositories"].find_one({"full_name": repo["full_name"]})
+        return self._serialize_simple_document(document)
+
     def ensure_demo_user(
         self,
         username: str,
@@ -428,6 +774,15 @@ class MongoStorage:
             findings=document.get("findings", []),
             created_at=document["created_at"],
         )
+
+    @staticmethod
+    def _serialize_simple_document(document: dict[str, Any]) -> dict[str, Any]:
+        result = dict(document)
+        result["id"] = str(result.pop("_id"))
+        for key, value in list(result.items()):
+            if isinstance(value, datetime):
+                result[key] = value.replace(microsecond=0).isoformat()
+        return result
 
 
 def create_storage(app_config) -> SQLStorage | MongoStorage:

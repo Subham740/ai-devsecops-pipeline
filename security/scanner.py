@@ -72,6 +72,26 @@ RULE_CATALOG = [
         "description": "Secret-like value appears to be hardcoded in source code.",
         "recommendation": "Move secrets to environment variables or a secrets manager and rotate exposed values.",
     },
+    {
+        "id": "BANDIT001",
+        "title": "Bandit SAST Finding",
+        "severity": "medium",
+        "cwe": "CWE-693",
+        "cvss": 6.0,
+        "risk_weight": 6,
+        "description": "Bandit reported a Python security issue.",
+        "recommendation": "Review the Bandit finding and replace risky APIs with secure alternatives.",
+    },
+    {
+        "id": "DEPS001",
+        "title": "Dependency Vulnerability",
+        "severity": "high",
+        "cwe": "CWE-1104",
+        "cvss": 8.0,
+        "risk_weight": 8,
+        "description": "A dependency scanner reported a vulnerable package.",
+        "recommendation": "Upgrade to a patched package version and rebuild the artifact.",
+    },
 ]
 
 RULE_INDEX = {rule["id"]: rule for rule in RULE_CATALOG}
@@ -142,6 +162,23 @@ def _run_json_command(label: str, cmd: list[str]) -> dict:
     return {"status": "error", "tool": label.lower(), "error": error_message}
 
 
+def _normalize_bandit_findings(payload: dict, filename: str) -> list[dict]:
+    findings: list[dict] = []
+    for issue in payload.get("results", []) or []:
+        severity = str(issue.get("issue_severity", "medium")).lower()
+        finding = _build_finding(
+            "BANDIT001",
+            issue.get("filename") or filename,
+            int(issue.get("line_number") or 1),
+            issue.get("issue_text") or "Bandit security issue detected.",
+            excerpt=issue.get("code"),
+        )
+        if severity in {"low", "medium", "high"}:
+            finding["severity"] = severity
+        findings.append(finding)
+    return findings
+
+
 def run_bandit():
     print("Running Bandit SAST...")
     try:
@@ -150,6 +187,30 @@ def run_bandit():
         print(str(exc))
         return {"status": "error", "tool": "bandit", "error": str(exc)}
     return _run_json_command("Bandit", cmd)
+
+
+def run_bandit_path(path: str) -> dict:
+    try:
+        cmd = [_resolve_cli("bandit"), "-r", path, "-f", "json"]
+    except FileNotFoundError as exc:
+        return {"status": "error", "tool": "bandit", "error": str(exc)}
+    return _run_json_command("Bandit", cmd)
+
+
+def run_dependency_scan(requirements_path: str = "requirements.txt") -> dict:
+    path = Path(requirements_path)
+    if not path.is_file():
+        return {"status": "skipped", "tool": "dependencies", "error": "requirements.txt not found."}
+
+    try:
+        audit_cli = _resolve_cli("pip-audit")
+        return _run_json_command("pip-audit", [audit_cli, "-r", str(path), "-f", "json"])
+    except FileNotFoundError:
+        try:
+            safety_cli = _resolve_cli("safety")
+            return _run_json_command("Safety", [safety_cli, "check", "-r", str(path), "--json"])
+        except FileNotFoundError as exc:
+            return {"status": "error", "tool": "dependencies", "error": str(exc)}
 
 
 def run_semgrep():
@@ -304,6 +365,68 @@ def scan_code(code, filename):
         "status": "needs_attention" if findings else "passed",
         "finding_count": len(findings),
         "findings": findings,
+    }
+
+
+def scan_repository_path(repo_path: str, *, max_files: int = 250) -> dict:
+    root = Path(repo_path).resolve()
+    if not root.exists() or not root.is_dir():
+        raise ValueError("Repository path does not exist or is not a directory.")
+
+    allowed_extensions = {".py", ".js", ".ts", ".java", ".go", ".sh", ".yml", ".yaml", ".json", ".txt"}
+    findings: list[dict] = []
+    scanned_files = 0
+
+    for path in root.rglob("*"):
+        if scanned_files >= max_files:
+            break
+        if path.is_dir() or path.suffix.lower() not in allowed_extensions:
+            continue
+        if any(part in {".git", ".venv", "node_modules", "__pycache__"} for part in path.parts):
+            continue
+
+        try:
+            code = path.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+
+        relative_name = str(path.relative_to(root))
+        result = scan_code(code[:200000], relative_name)
+        findings.extend(result.get("findings", []))
+        scanned_files += 1
+
+    bandit_payload = run_bandit_path(str(root))
+    findings.extend(_normalize_bandit_findings(bandit_payload, str(root)))
+
+    dependency_payload = run_dependency_scan(str(root / "requirements.txt"))
+    if isinstance(dependency_payload, list):
+        dependency_findings = dependency_payload
+        dependency_status = "ok"
+    else:
+        dependency_findings = dependency_payload.get("dependencies") or dependency_payload.get("vulnerabilities") or []
+        dependency_status = dependency_payload.get("status", "ok")
+    for item in dependency_findings[:100]:
+        package = item.get("name") or item.get("package") or item.get("dependency", "dependency")
+        findings.append(
+            _build_finding(
+                "DEPS001",
+                "requirements.txt",
+                1,
+                f"Dependency vulnerability detected in {package}.",
+                excerpt=json.dumps(item, default=str)[:1000],
+            )
+        )
+
+    findings.sort(key=lambda item: (item.get("filename", ""), item.get("line", 0), item.get("id", "")))
+    return {
+        "status": "needs_attention" if findings else "passed",
+        "finding_count": len(findings),
+        "findings": findings,
+        "scanned_files": scanned_files,
+        "tool_status": {
+            "bandit": bandit_payload.get("status", "ok"),
+            "dependencies": dependency_status,
+        },
     }
 
 

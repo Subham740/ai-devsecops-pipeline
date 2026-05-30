@@ -15,5 +15,5 @@ COPY . .
 # Expose the port Flask runs on
 EXPOSE 5000
 
-# Run the app using gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "run:app"]
+# Run the app using gunicorn with threaded websocket support
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--threads", "100", "run:app"]

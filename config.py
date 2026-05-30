@@ -25,6 +25,9 @@ class Config:
 
     SCAN_ROOT = os.getenv("SCAN_ROOT", str(BASE_DIR))
     MAX_SCAN_LENGTH = int(os.getenv("MAX_SCAN_LENGTH", "100000"))
+    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", str(10 * 1024 * 1024)))
+    SESSION_COOKIE_HTTPONLY = True
+    SESSION_COOKIE_SAMESITE = os.getenv("SESSION_COOKIE_SAMESITE", "Lax")
 
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     OPENAI_MODEL = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
@@ -32,6 +35,7 @@ class Config:
     GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
     GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
     AI_PROVIDER = os.getenv("AI_PROVIDER", "auto").lower()
+    GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 
     DEMO_USERNAME = os.getenv("DEMO_USERNAME", "tester")
     DEMO_PASSWORD = os.getenv("DEMO_PASSWORD", "TestPass123!")
